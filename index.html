@@ -1,0 +1,2566 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<!-- Адаптивность: игра корректно отображается на мобильных и десктопах -->
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>NEON RUST — Меха-протокол 2077</title>
+<style>
+/* ============================================================
+   ОБЩИЕ СТИЛИ — аниме-постапокалиптический стиль
+   Тёмный фон, неоновые акценты, «ржавые» текстуры, scanline
+   ============================================================ */
+* { margin: 0; padding: 0; box-sizing: border-box; }
+
+:root {
+  --neon-cyan: #35f0ff;
+  --neon-pink: #ff4d9df0;
+  --neon-amber: #ffb347;
+  --bg-dark: #0b0e14;
+  --panel: rgba(16, 22, 34, 0.85);
+  --panel-border: #2a3b55;
+  --rust: #8a4b2a;
+}
+
+html, body {
+  height: 100%;
+  background: var(--bg-dark);
+  color: #dfe9f5;
+  font-family: "Segoe UI", "Arial", sans-serif;
+  overflow-x: hidden;
+}
+
+/* Фоновая «атмосфера»: градиент разрушенного неба + сетка */
+body::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  background:
+    radial-gradient(ellipse at 20% 10%, rgba(255, 77, 157, 0.12), transparent 45%),
+    radial-gradient(ellipse at 80% 90%, rgba(53, 240, 255, 0.10), transparent 50%),
+    linear-gradient(180deg, #131a2a 0%, #0b0e14 55%, #1a120c 100%);
+  z-index: -2;
+}
+
+/* Эффект «ЭЛТ-монитора» / помехи радиосвязи поверх всего */
+body::after {
+  content: "";
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  background: repeating-linear-gradient(
+    0deg, rgba(0,0,0,0.18) 0px, rgba(0,0,0,0.18) 1px,
+    transparent 1px, transparent 3px);
+  z-index: 999;
+  opacity: 0.35;
+  animation: flicker 6s infinite;
+}
+@keyframes flicker {
+  0%,100% { opacity: .35; } 48% { opacity: .30; } 50% { opacity: .45; } 52% { opacity: .30; }
+}
+
+/* ---------- Верхняя навигация (переключение экранов) ---------- */
+header {
+  padding: 14px 18px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  align-items: center;
+  background: linear-gradient(90deg, rgba(20,26,40,.95), rgba(10,14,22,.9));
+  border-bottom: 2px solid var(--panel-border);
+  box-shadow: 0 0 25px rgba(53,240,255,.15);
+  position: sticky;
+  top: 0;
+  z-index: 50;
+}
+.logo {
+  font-weight: 900;
+  letter-spacing: 2px;
+  font-size: 1.15rem;
+  color: var(--neon-cyan);
+  text-shadow: 0 0 12px rgba(53,240,255,.8);
+  margin-right: auto;
+}
+.logo span { color: var(--neon-pink); text-shadow: 0 0 12px rgba(255,77,157,.8); }
+
+.nav-btn {
+  background: var(--panel);
+  border: 1px solid var(--panel-border);
+  color: #9fb4cc;
+  padding: 9px 16px;
+  cursor: pointer;
+  font-size: .85rem;
+  letter-spacing: 1px;
+  text-transform: uppercase;
+  clip-path: polygon(8px 0, 100% 0, calc(100% - 8px) 100%, 0 100%);
+  transition: all .2s;
+}
+.nav-btn:hover { color: #fff; border-color: var(--neon-cyan); }
+.nav-btn.active {
+  color: #061018;
+  background: var(--neon-cyan);
+  box-shadow: 0 0 18px rgba(53,240,255,.6);
+  font-weight: 700;
+}
+
+/* ---------- Экраны ---------- */
+.screen { display: none; padding: 22px; max-width: 1200px; margin: 0 auto; animation: fadein .35s; }
+.screen.visible { display: block; }
+@keyframes fadein { from { opacity: 0; transform: translateY(10px);} to { opacity: 1; transform: none;} }
+
+h2.screen-title {
+  font-size: 1.5rem;
+  letter-spacing: 3px;
+  text-transform: uppercase;
+  color: var(--neon-amber);
+  text-shadow: 0 0 10px rgba(255,179,71,.5);
+  margin-bottom: 4px;
+}
+p.screen-sub { color: #7d93ad; font-size: .85rem; margin-bottom: 20px; }
+
+.panel {
+  background: var(--panel);
+  border: 1px solid var(--panel-border);
+  border-radius: 4px;
+  padding: 16px;
+  box-shadow: inset 0 0 30px rgba(0,0,0,.5);
+}
+
+/* ============================================================
+   ЭКРАН «АНГАР» — мех + кастомизация
+   ============================================================ */
+.hangar-grid {
+  display: grid;
+  grid-template-columns: minmax(280px, 460px) 1fr;
+  gap: 20px;
+}
+@media (max-width: 860px) { .hangar-grid { grid-template-columns: 1fr; } }
+
+/* Мех рисуется на canvas, вокруг — «шахта ангара» */
+#mechStage {
+  position: relative;
+  background:
+    radial-gradient(circle at 50% 30%, rgba(53,240,255,.10), transparent 60%),
+    linear-gradient(180deg, #0d1522 0%, #0a0f18 70%, #16110b 100%);
+  border: 1px solid var(--panel-border);
+  border-radius: 6px;
+  overflow: hidden;
+  min-height: 420px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+#mechStage::before { /* вертикальные направляющие ангара */
+  content: "";
+  position: absolute; inset: 0;
+  background: repeating-linear-gradient(90deg, rgba(53,240,255,.05) 0 2px, transparent 2px 60px);
+  pointer-events: none;
+}
+#mechCanvas { width: 100%; height: 420px; display: block; }
+
+.mech-label {
+  position: absolute; bottom: 8px; left: 12px;
+  font-size: .7rem; letter-spacing: 2px; color: var(--neon-cyan);
+  text-shadow: 0 0 8px rgba(53,240,255,.7);
+}
+.warn-stripes { /* предупреждающая разметка пола ангара */
+  position: absolute; bottom: 0; left: 0; right: 0; height: 14px;
+  background: repeating-linear-gradient(45deg, #ffb347 0 12px, #16110b 12px 24px);
+  opacity: .5;
+}
+
+/* Слоты экипировки */
+.slots { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 12px; margin-bottom: 16px; }
+.slot {
+  border: 1px dashed var(--panel-border);
+  border-radius: 4px;
+  padding: 10px;
+  background: rgba(8,12,20,.6);
+}
+.slot h4 {
+  font-size: .75rem; text-transform: uppercase; letter-spacing: 2px;
+  color: var(--neon-pink); margin-bottom: 8px;
+}
+.slot select {
+  width: 100%;
+  background: #101828;
+  color: #dfe9f5;
+  border: 1px solid var(--panel-border);
+  padding: 8px;
+  font-size: .85rem;
+  outline: none;
+}
+.slot select:focus { border-color: var(--neon-cyan); }
+
+/* Итоговые характеристики меха */
+.stats-bar {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+  gap: 10px;
+  margin-top: 14px;
+}
+.stat {
+  text-align: center;
+  border: 1px solid var(--panel-border);
+  background: rgba(8,12,20,.7);
+  padding: 8px 4px;
+  border-radius: 4px;
+}
+.stat .val { font-size: 1.3rem; font-weight: 800; color: var(--neon-cyan); text-shadow: 0 0 8px rgba(53,240,255,.5); }
+.stat .name { font-size: .65rem; text-transform: uppercase; letter-spacing: 1px; color: #7d93ad; }
+.stat.overload .val { color: #ff5555; text-shadow: 0 0 8px rgba(255,60,60,.6); }
+
+/* Карточки деталей в тултипе при выборе */
+.detail-info { font-size: .75rem; color: #9fb4cc; margin-top: 6px; line-height: 1.5; }
+
+.btn-primary {
+  display: inline-block;
+  margin-top: 14px;
+  padding: 12px 26px;
+  background: linear-gradient(90deg, #ff4d9d, #b0267a);
+  color: #fff;
+  border: none;
+  font-size: .9rem;
+  letter-spacing: 2px;
+  text-transform: uppercase;
+  cursor: pointer;
+  clip-path: polygon(10px 0, 100% 0, calc(100% - 10px) 100%, 0 100%);
+  box-shadow: 0 0 20px rgba(255,77,157,.4);
+  transition: transform .15s;
+}
+.btn-primary:hover { transform: scale(1.04); }
+
+/* ============================================================
+   ЭКРАН «КОМНАТА ПИЛОТА» — стол с папками
+   ============================================================ */
+.room {
+  position: relative;
+  min-height: 560px;
+  border-radius: 8px;
+  overflow: hidden;
+  border: 1px solid var(--panel-border);
+  /* Обои комнаты + окно с видом на руины города */
+  background:
+    linear-gradient(180deg, #1c2438 0%, #141a29 55%, #241a12 100%);
+}
+.room .window-view {
+  position: absolute; top: 6%; left: 6%; width: 34%; height: 42%;
+  background: linear-gradient(180deg, #3a2440 0%, #55324a 40%, #2b2130 100%);
+  border: 6px solid #0d0f16;
+  box-shadow: 0 0 30px rgba(255,77,157,.25), inset 0 0 20px rgba(0,0,0,.6);
+}
+.window-view::before { /* силуэт разрушенных зданий за окном */
+  content: "";
+  position: absolute; inset: auto 0 0 0; height: 55%;
+  background:
+    linear-gradient(90deg, transparent 0 6%, #12141d 6% 14%, transparent 14% 20%,
+      #12141d 20% 30%, transparent 30% 36%, #171a26 36% 52%, transparent 52% 58%,
+      #12141d 58% 70%, transparent 70% 76%, #171a26 76% 92%, transparent 92%);
+  clip-path: polygon(0 30%, 8% 30%, 8% 10%, 14% 10%, 14% 40%, 20% 40%, 20% 0, 30% 0,
+    30% 35%, 36% 35%, 36% 15%, 52% 15%, 52% 45%, 58% 45%, 58% 5%, 70% 5%, 70% 38%,
+    76% 38%, 76% 20%, 92% 20%, 92% 42%, 100% 42%, 100% 100%, 0 100%);
+}
+.window-view::after { /* луна в небе */
+  content: "";
+  position: absolute; top: 14%; right: 16%; width: 34px; height: 34px; border-radius: 50%;
+  background: radial-gradient(circle at 35% 35%, #ffe9c9, #d9a06b);
+  box-shadow: 0 0 25px rgba(255,220,170,.7);
+}
+
+.desk {
+  position: absolute; bottom: 0; left: 0; right: 0; height: 46%;
+  background:
+    linear-gradient(180deg, #6b4a2e 0%, #543a22 12%, #3e2b18 100%);
+  border-top: 8px solid #7c5636;
+  box-shadow: inset 0 8px 20px rgba(0,0,0,.4);
+}
+.desk::before { /* текстура дерева */
+  content: "";
+  position: absolute; inset: 0;
+  background: repeating-linear-gradient(90deg, rgba(0,0,0,.12) 0 3px, transparent 3px 26px);
+}
+
+/* Папки с личными делами пилотов */
+.folder {
+  position: absolute;
+  width: 150px; height: 190px;
+  cursor: pointer;
+  transition: transform .25s, filter .25s;
+  z-index: 5;
+}
+.folder:hover { transform: translateY(-14px) rotate(-2deg); filter: brightness(1.15); }
+.folder .tab {
+  position: absolute; top: -14px; left: 10px;
+  width: 70px; height: 20px;
+  border-radius: 8px 8px 0 0;
+}
+.folder .cover {
+  position: absolute; inset: 0;
+  border-radius: 3px 10px 6px 6px;
+  border: 2px solid rgba(0,0,0,.35);
+  box-shadow: 0 10px 24px rgba(0,0,0,.55), inset 0 0 30px rgba(0,0,0,.25);
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
+  gap: 8px; padding: 10px;
+}
+.folder.boy  { left: 16%; bottom: 14%; transform: rotate(-3deg); }
+.folder.girl { left: 40%; bottom: 12%; transform: rotate(2deg); }
+.folder.boy  .tab { background: #2e6fd8; }
+.folder.boy  .cover { background: linear-gradient(160deg, #3b82f6, #1d4ed8); }
+.folder.girl .tab { background: #d84e8a; }
+.folder.girl .cover { background: linear-gradient(160deg, #f472b6, #be1e5d); }
+
+/* Мини-аватар пилота на обложке (чистый CSS, аниме-стиль) */
+.avatar {
+  width: 74px; height: 74px; border-radius: 50%;
+  position: relative;
+  background: radial-gradient(circle at 50% 62%, #ffdcb8 55%, transparent 56%);
+  border: 3px solid rgba(255,255,255,.75);
+  overflow: hidden;
+}
+.avatar .hair-boy {
+  position: absolute; inset: 0;
+  background:
+    radial-gradient(circle at 50% 30%, #2b3a55 62%, transparent 63%);
+}
+.avatar .hair-boy::after { /* торчащие пряди — аниме-ёжик */
+  content: "";
+  position: absolute; left: 8%; top: 34%; width: 84%; height: 40%;
+  background:
+    conic-gradient(from 200deg at 20% 0%, #2b3a55 0 25%, transparent 25%),
+    conic-gradient(from 320deg at 80% 0%, #2b3a55 0 25%, transparent 25%);
+}
+.avatar .hair-girl {
+  position: absolute; inset: 0;
+  background: radial-gradient(circle at 50% 26%, #7a3b52 66%, transparent 67%);
+}
+.avatar .hair-girl::after { /* длинные боковые пряди */
+  content: "";
+  position: absolute; left: 4%; top: 26%; width: 92%; height: 74%;
+  background:
+    linear-gradient(#7a3b52, #7a3b52) left/16px 100% no-repeat,
+    linear-gradient(#7a3b52, #7a3b52) right/16px 100% no-repeat;
+  border-radius: 0 0 10px 10px;
+}
+.avatar .face {
+  position: absolute; left: 22%; top: 40%; width: 56%; height: 46%;
+  background: #ffdcb8; border-radius: 45% 45% 50% 50%;
+}
+.avatar .eye { position: absolute; top: 34%; width: 9px; height: 12px; border-radius: 50%; background: #1c2438; }
+.avatar .eye.l { left: 22%; } .avatar .eye.r { right: 22%; }
+.avatar .blush { position: absolute; bottom: 22%; width: 10px; height: 5px; border-radius: 50%; background: rgba(255,120,140,.55); }
+.avatar .blush.l { left: 12%; } .avatar .blush.r { right: 12%; }
+
+.folder .fname {
+  color: #fff; font-weight: 800; font-size: .8rem; text-align: center;
+  text-shadow: 0 2px 4px rgba(0,0,0,.6); letter-spacing: 1px;
+}
+.folder .hint { color: rgba(255,255,255,.75); font-size: .62rem; }
+
+/* Предметы на столе для атмосферы */
+.mug, .lamp {
+  position: absolute; z-index: 4;
+}
+.mug { right: 14%; bottom: 22%; width: 44px; height: 50px; background: #c8ccd4; border-radius: 4px 4px 10px 10px; }
+.mug::after { content: ""; position: absolute; right: -16px; top: 8px; width: 20px; height: 26px; border: 5px solid #c8ccd4; border-radius: 50%; }
+.lamp { right: 30%; bottom: 40%; width: 14px; height: 110px; background: #22304a; }
+.lamp::before { content: ""; position: absolute; top: -26px; left: -34px; width: 80px; height: 34px; background: #35f0ff; clip-path: polygon(20% 0, 80% 0, 100% 100%, 0 100%); box-shadow: 0 20px 60px 10px rgba(53,240,255,.35); }
+
+/* Модальное окно досье */
+.modal {
+  position: fixed; inset: 0;
+  background: rgba(4,6,10,.8);
+  display: none; align-items: center; justify-content: center;
+  z-index: 100; padding: 16px;
+}
+.modal.open { display: flex; }
+.dossier {
+  width: min(560px, 94vw);
+  max-height: 86vh; overflow-y: auto;
+  background: linear-gradient(160deg, #14203a, #0d1424);
+  border: 1px solid var(--neon-cyan);
+  box-shadow: 0 0 40px rgba(53,240,255,.3);
+  padding: 22px;
+  position: relative;
+}
+.dossier.pink { border-color: var(--neon-pink); box-shadow: 0 0 40px rgba(255,77,157,.3); }
+.dossier h3 { letter-spacing: 2px; color: var(--neon-cyan); margin-bottom: 4px; }
+.dossier.pink h3 { color: var(--neon-pink); }
+.dossier .rank { font-size: .75rem; color: var(--neon-amber); text-transform: uppercase; letter-spacing: 2px; margin-bottom: 14px; }
+.dossier p { font-size: .9rem; line-height: 1.65; color: #c9d8ea; margin-bottom: 10px; }
+.dossier .stamp {
+  position: absolute; top: 16px; right: 18px;
+  border: 3px solid rgba(255,80,80,.8); color: rgba(255,80,80,.85);
+  padding: 4px 10px; font-weight: 900; letter-spacing: 3px; font-size: .7rem;
+  transform: rotate(12deg);
+}
+.close-x {
+  position: absolute; bottom: 14px; right: 16px;
+  background: none; border: 1px solid #7d93ad; color: #7d93ad;
+  padding: 8px 16px; cursor: pointer; letter-spacing: 2px;
+}
+.close-x:hover { color: #fff; border-color: #fff; }
+
+/* ------------------------------------------------------------
+   ПИЛОТЫ В КОМНАТЕ: сидят за столом, анимации живых движений
+   (дыхание корпуса, повороты головы, взгляд-сканирование,
+   моргание, покачивание руки с планшетом, пар от кружки)
+   ------------------------------------------------------------ */
+.pilot { position:absolute; bottom:30%; width:120px; height:210px; z-index:6; pointer-events:none; }
+.pilot.boy  { left:62%; }
+.pilot.girl { left:75%; }
+/* торс-комбинезон с дыханием */
+.p-torso {
+  position:absolute; bottom:0; left:50%; transform:translateX(-50%);
+  width:84px; height:120px; border-radius:40px 40px 10px 10px;
+  animation: pBreathe 3.4s ease-in-out infinite;
+}
+@keyframes pBreathe { 0%,100% { transform:translateX(-50%) scaleY(1); } 50% { transform:translateX(-50%) scaleY(1.03) translateY(-2px); } }
+.pilot.boy .p-torso  { background:linear-gradient(160deg,#2e6fd8,#173a7a); box-shadow:inset -8px -6px 0 rgba(0,0,0,.25); }
+.pilot.girl .p-torso { background:linear-gradient(160deg,#f472b6,#9d1450); box-shadow:inset -8px -6px 0 rgba(0,0,0,.25); }
+.p-stripe { position:absolute; top:18px; left:50%; transform:translateX(-50%); width:12px; height:70px; background:rgba(255,255,255,.35); border-radius:4px; }
+/* голова: медленные повороты туда-сюда */
+.p-head {
+  position:absolute; top:0; left:50%; margin-left:-33px;
+  width:66px; height:72px; border-radius:46% 46% 50% 50%;
+  background:#ffdcb8; overflow:hidden;
+  animation: pLook 6.5s ease-in-out infinite;
+  transform-origin:50% 90%;
+}
+@keyframes pLook { 0%,42% { transform:rotate(0);} 55%,78% { transform:rotate(-7deg);} 90%,100% { transform:rotate(3deg);} }
+.p-hair-b { position:absolute; inset:-2px -2px auto -2px; height:44px; background:#2b3a55; border-radius:50% 50% 22% 22%; }
+.p-hair-b::after { content:""; position:absolute; left:14%; top:78%; width:16px; height:16px; background:#2b3a55; clip-path:polygon(0 0,100% 0,50% 100%); box-shadow:22px 2px 0 #2b3a55, 40px -2px 0 #2b3a55; }
+.p-hair-g { position:absolute; inset:-2px -2px auto -2px; height:40px; background:#7a3b52; border-radius:50% 50% 10% 10%; }
+.p-hair-g::before, .p-hair-g::after { content:""; position:absolute; top:60%; width:14px; height:64px; background:#7a3b52; border-radius:0 0 8px 8px; }
+.p-hair-g::before { left:0; } .p-hair-g::after { right:0; }
+/* глаза: зрачки бегают (взгляд по документам) + моргание */
+.p-eye { position:absolute; top:40%; width:11px; height:14px; background:#fff; border-radius:50%; overflow:hidden; }
+.p-eye.l { left:20%; } .p-eye.r { right:20%; }
+.p-pupil { position:absolute; left:2px; top:3px; width:7px; height:8px; background:#1c2438; border-radius:50%; animation: pGlance 5s ease-in-out infinite; }
+@keyframes pGlance { 0%,100% { transform:translateX(0);} 30% { transform:translateX(2px);} 60% { transform:translateX(-2px) translateY(1px);} }
+.p-lid { position:absolute; inset:0; background:#ffdcb8; transform:scaleY(0); transform-origin:top; animation: pBlink 4.2s infinite; }
+@keyframes pBlink { 0%,94%,100% { transform:scaleY(0);} 96% { transform:scaleY(1);} 98% { transform:scaleY(0);} }
+.p-blush { position:absolute; bottom:24%; width:11px; height:5px; border-radius:50%; background:rgba(255,120,140,.5); }
+.p-blush.l { left:12%; } .p-blush.r { right:12%; }
+/* рука с планшетом: покачивается в ладони */
+.p-arm {
+  position:absolute; bottom:34px; left:6px; width:46px; height:12px;
+  border-radius:6px; transform-origin:100% 50%;
+  animation: pArmSway 3.1s ease-in-out infinite;
+}
+.pilot.boy .p-arm { background:#2e6fd8; } .pilot.girl .p-arm { background:#f472b6; }
+.p-arm::after { content:""; position:absolute; left:-16px; top:-3px; width:26px; height:18px; background:#e8eef6; border:2px solid #9aa7b8; border-radius:2px; transform:rotate(-14deg); }
+@keyframes pArmSway { 0%,100% { transform:rotate(-4deg);} 50% { transform:rotate(6deg);} }
+/* пар над кружкой — лёгкая жизнь на столе */
+.steam { position:absolute; right:12%; bottom:34%; width:8px; height:34px; z-index:5; pointer-events:none; }
+.steam i { position:absolute; bottom:0; left:0; width:6px; height:6px; border-radius:50%; background:rgba(255,255,255,.35); animation: steamUp 3s infinite; }
+.steam i:nth-child(2) { animation-delay:1s; left:4px; } .steam i:nth-child(3) { animation-delay:2s; left:-2px; }
+@keyframes steamUp { from { transform:translateY(0) scale(.6); opacity:.8; } to { transform:translateY(-34px) scale(1.6); opacity:0; } }
+@media (max-width:760px){ .pilot{ transform:scale(.7); transform-origin:bottom center; } }
+
+/* ============================================================
+   ПОЛИГОН «ЭХО» (ТРЕНИРОВОЧНЫЙ АНГАР): изометрическая сетка
+   16×16 — та же, что на поле боя, но мехи НЕ ХОДЯТ (местность
+   ровная, без завалов). Подсветки: голубая — зона хода,
+   оранжевая — зона огня оружия («до куда стреляет»).
+   ============================================================ */
+/* Полотно полигона. ВАЖНО про размеры: width/height задаются АТРИБУТАМИ
+   в HTML (внутренний пиксельный буфер изометрии), а CSS-свойства ниже —
+   только «резиновая» витрина. display:block обязателен: без него у canvas
+   базовая линия строки добавляет отступ и высота «прыгает». */
+#trainingCanvas {
+  display:block;
+  background:#0a1018; border:1px solid #2a3b52; border-radius:8px;
+  cursor:crosshair; width:940px; max-width:100%; height:auto; touch-action:manipulation;
+  box-shadow:0 0 30px rgba(0,0,0,.6) inset;
+}
+.tr-wrap { display:flex; gap:14px; flex-wrap:wrap; align-items:flex-start; }
+/* Обёртка полотна: relative — чтобы плашка загрузки легла ровно на canvas */
+.iso-stage { position:relative; flex:0 1 940px; min-width:280px; }
+/* Плашка «загрузка сцены»: закрыта (opacity 0) по умолчанию,
+   открывается классом .on при входе на экран поля боя / полигона.
+   Внутри — ДВА элемента в колонку: надпись-статус и КНОПКА «НАЧАТЬ БОЙ» */
+.scene-loading {
+  position:absolute; inset:0; z-index:5; border-radius:8px;
+  display:flex; flex-direction:column; align-items:center; justify-content:center;
+  gap:18px; padding:20px; text-align:center;
+  background:rgba(6,10,18,.92);
+  opacity:0; pointer-events:none; transition:opacity .25s;
+}
+.scene-loading.on { opacity:1; pointer-events:auto; }
+.scene-loading span {
+  font-family:monospace; letter-spacing:4px; font-size:.95rem; color:var(--neon-cyan,#35f0ff);
+  text-shadow:0 0 14px rgba(53,240,255,.7); animation:loadBlink 1s infinite steps(2);
+}
+@keyframes loadBlink { 0%,100%{opacity:1;} 50%{opacity:.4;} }
+/* Крупная неоновая кнопка «▶ НАЧАТЬ БОЙ» поверх заставки */
+.start-fight-btn {
+  font-family:inherit; font-weight:900; font-size:1.15rem; letter-spacing:4px;
+  text-transform:uppercase; cursor:pointer; padding:16px 42px; border-radius:8px;
+  color:#04121a; background:linear-gradient(180deg,#5df6ff,#18b9d4 60%,#0e8aa8);
+  border:2px solid #bafcff; box-shadow:0 0 26px rgba(53,240,255,.55), inset 0 0 12px rgba(255,255,255,.35);
+  transition:transform .12s, box-shadow .12s, filter .12s;
+  animation:startPulse 1.4s ease-in-out infinite;
+}
+.start-fight-btn:hover { transform:scale(1.06); filter:brightness(1.15); }
+.start-fight-btn:active { transform:scale(.97); }
+@keyframes startPulse {
+  0%,100% { box-shadow:0 0 22px rgba(53,240,255,.45), inset 0 0 12px rgba(255,255,255,.35); }
+  50%     { box-shadow:0 0 44px rgba(53,240,255,.9),  inset 0 0 18px rgba(255,255,255,.5); }
+}
+.tr-side { flex:1 1 250px; min-width:240px; display:flex; flex-direction:column; gap:12px; }
+.act-buttons { display:flex; gap:10px; flex-wrap:wrap; }
+.act-btn {
+  flex:1 1 120px; padding:14px 10px; font-weight:800; letter-spacing:2px;
+  text-transform:uppercase; cursor:pointer; border-radius:6px; font-size:.85rem;
+  background:rgba(8,12,20,.85); border:2px solid #2a3b52; color:#8fa3bd;
+  transition:.15s;
+}
+.act-btn small { display:block; font-weight:400; letter-spacing:1px; font-size:.62rem; margin-top:3px; color:#6d84a0; }
+.act-btn.active-move { border-color:var(--neon-cyan); color:var(--neon-cyan); box-shadow:0 0 16px rgba(53,240,255,.4); }
+.act-btn.active-fire { border-color:var(--neon-amber); color:var(--neon-amber); box-shadow:0 0 16px rgba(255,179,71,.4); }
+.act-btn.ready { animation: btnPulse 1.4s infinite; }
+@keyframes btnPulse { 0%,100% { filter:brightness(1);} 50% { filter:brightness(1.5);} }
+.act-btn:disabled { opacity:.4; cursor:not-allowed; }
+.dmg-grid { display:grid; grid-template-columns:repeat(2,1fr); gap:8px; font-size:.75rem; }
+.dmg-cell { border:1px solid #2a3b52; border-radius:6px; padding:8px; background:rgba(10,18,28,.8); }
+.dmg-cell b { display:block; font-size:.68rem; letter-spacing:1px; color:#8fa3bd; margin-bottom:4px; }
+.dmg-bar { height:8px; background:#131c29; border-radius:3px; overflow:hidden; border:1px solid #33475e; }
+.dmg-bar i { display:block; height:100%; background:linear-gradient(90deg,#3ad6c4,#7ef2e2); transition:width .3s; }
+.dmg-bar.warnfill i { background:linear-gradient(90deg,#c4574a,#ff8a70); }
+.dmg-note { font-size:.62rem; color:#6d84a0; margin-top:4px; line-height:1.35; }
+.dmg-cell.hurt { border-color:#ff5d5d; box-shadow:0 0 10px rgba(255,93,93,.35); }
+#trLog { max-height:150px; overflow-y:auto; font-family:monospace; font-size:.72rem; background:rgba(5,10,16,.8); border:1px solid #223044; padding:8px; border-radius:6px; }
+#trLog div { padding:1px 0; color:#9fb4cc; }
+#trLog .dmg { color:#ff8a70; } #trLog .kill { color:#ffd23f; } #trLog .warn { color:var(--neon-amber); }
+#trLog .heal { color:#7ef2e2; }
+@media (max-width:900px){ .tr-wrap { flex-direction:column; } }
+
+/* ============================================================
+   ЭКРАН «ТРЕНИРОВОЧНЫЙ АНГАР» — полигон с вражескими мехами
+   ============================================================ */
+.range-controls { display: flex; flex-wrap: wrap; gap: 10px; margin-bottom: 16px; }
+.range-controls button {
+  background: rgba(8,12,20,.7);
+  border: 1px solid var(--panel-border);
+  color: #dfe9f5;
+  padding: 10px 16px;
+  cursor: pointer;
+  letter-spacing: 1px;
+  font-size: .8rem;
+  text-transform: uppercase;
+}
+.range-controls button:hover, .range-controls button.on { border-color: var(--neon-cyan); color: var(--neon-cyan); box-shadow: 0 0 12px rgba(53,240,255,.3); }
+
+.training-field {
+  position: relative;
+  height: 480px;
+  border: 1px solid var(--panel-border);
+  border-radius: 6px;
+  overflow: hidden;
+  background:
+    radial-gradient(circle at 50% 100%, rgba(255,179,71,.10), transparent 55%),
+    linear-gradient(180deg, #0d1522 0%, #0b1018 60%, #171310 100%);
+}
+.training-field::before { /* линия горизонта полигона */
+  content: "";
+  position: absolute; left: 0; right: 0; bottom: 70px; height: 2px;
+  background: linear-gradient(90deg, transparent, var(--neon-cyan), transparent);
+  opacity: .5;
+}
+
+/* ------------------------------------------------------------
+   ВРАЖЕСКИЕ МЕХИ (CSS-фигуры).
+   >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
+   КОММЕНТАРИЙ ДЛЯ ПОЛЬЗОВАТЕЛЬСКИХ СПРАЙТОВ:
+   Если вы создали своих мехов на https://spritepaint.com/,
+   экспортируйте их как PNG и замените содержимое блока .enemy-mech
+   на <img src="мой_спрайт.png" alt="враг"> внутри .enemy-mech,
+   либо подставьте URL картинки в CSS-переменную --sprite ниже
+   и раскомментируйте правило .enemy-mech.use-sprite.
+   Размер спрайта регулируйте width/height у .enemy-mech img.
+   ---------------------------------------------------------- */
+.enemy-mech {
+  position: absolute;
+  bottom: 70px;
+  transform-origin: bottom center;
+  cursor: pointer;
+  transition: filter .2s;
+}
+.enemy-mech img { width: 100%; height: 100%; image-rendering: pixelated; }
+/* Раскомментируйте и задайте путь к своему спрайту spritepaint:
+.enemy-mech.use-sprite .parts { display:none; }
+.enemy-mech.use-sprite { background: url('sprite_light.png') center/contain no-repeat; }
+*/
+
+/* Покачивание в ожидании (idle sway) */
+@keyframes sway { 0%,100% { transform: rotate(-2deg);} 50% { transform: rotate(2deg);} }
+/* Анимация атаки: рывок вперёд + вспышка */
+@keyframes attackLunge {
+  0% { transform: translateX(0) rotate(0); }
+  30% { transform: translateX(-46px) rotate(-8deg) scale(1.06); }
+  60% { transform: translateX(-18px) rotate(3deg); }
+  100% { transform: translateX(0) rotate(0); }
+}
+@keyframes hitFlash { 0%,100% { filter: none; } 50% { filter: brightness(3) drop-shadow(0 0 18px #ff4444); } }
+
+.enemy-mech .parts { position: relative; width: 100%; height: 100%; animation: sway 2.6s ease-in-out infinite; }
+.enemy-mech.attacking .parts { animation: attackLunge .6s ease-out; }
+.enemy-mech.hit { animation: hitFlash .4s linear 2; }
+
+/* Части тела вражеского меха — примитивные div-блоки */
+.e-head, .e-torso, .e-arm, .e-leg, .e-weapon { position: absolute; border-radius: 3px; }
+.e-head { left: 50%; transform: translateX(-50%); border-radius: 4px 4px 8px 8px; }
+.e-head::after { /* визор-глаз */
+  content: ""; position: absolute; left: 15%; top: 40%; width: 70%; height: 22%;
+  background: #ffe14d; box-shadow: 0 0 10px #ffe14d; border-radius: 2px;
+}
+.e-torso { left: 50%; transform: translateX(-50%); }
+.e-arm { top: 26%; }
+.e-arm.l { left: -14%; } .e-arm.r { right: -14%; }
+.e-leg { bottom: 0; }
+.e-leg.l { left: 22%; } .e-leg.r { right: 22%; }
+.e-weapon { right: -30%; top: 30%; background: linear-gradient(#9aa7b8, #556072); border-radius: 2px; }
+
+/* Три класса врагов: разные цвета и размеры */
+.enemy-light  { width: 74px;  height: 120px; }
+.enemy-medium { width: 100px; height: 158px; }
+.enemy-heavy  { width: 138px; height: 196px; }
+.enemy-light  .e-head  { width: 26%; height: 16%; top: 0; background: #37d67a; }
+.enemy-light  .e-torso { width: 56%; height: 38%; top: 17%; background: linear-gradient(#2fbf6c, #1c7d46); }
+.enemy-light  .e-arm   { width: 13%; height: 30%; top: 20%; background: #28a85e; }
+.enemy-light  .e-leg   { width: 17%; height: 40%; background: #1f8f4e; }
+.enemy-light  .e-weapon{ width: 34%; height: 7%; }
+.enemy-medium .e-head  { width: 24%; height: 15%; top: 0; background: #d6a537; }
+.enemy-medium .e-torso { width: 60%; height: 40%; top: 16%; background: linear-gradient(#c9962c, #8a641a); }
+.enemy-medium .e-arm   { width: 14%; height: 32%; top: 20%; background: #b3852a; }
+.enemy-medium .e-leg   { width: 19%; height: 38%; background: #96701f; }
+.enemy-medium .e-weapon{ width: 38%; height: 9%; }
+.enemy-heavy  .e-head  { width: 20%; height: 13%; top: 0; background: #d64f4f; }
+.enemy-heavy  .e-torso { width: 66%; height: 44%; top: 14%; background: linear-gradient(#c03a3a, #6e1f24); }
+.enemy-heavy  .e-arm   { width: 15%; height: 34%; top: 20%; background: #a83232; }
+.enemy-heavy  .e-leg   { width: 22%; height: 36%; background: #8c2a2a; }
+.enemy-heavy  .e-weapon{ width: 42%; height: 12%; }
+
+.enemy-tag {
+  position: absolute; top: -26px; left: 50%; transform: translateX(-50%);
+  font-size: .62rem; letter-spacing: 1px; white-space: nowrap;
+  color: #ffdede; background: rgba(120,20,20,.7); padding: 2px 8px; border-radius: 3px;
+}
+.enemy-hp {
+  position: absolute; top: -10px; left: 0; width: 100%; height: 5px;
+  background: #33121a; border: 1px solid #000;
+}
+.enemy-hp i { display: block; height: 100%; background: linear-gradient(90deg,#ff4d4d,#ffb347); transition: width .25s; }
+
+/* Наш мех на полигоне */
+#playerMechBox { position: absolute; left: 40px; bottom: 70px; width: 110px; height: 170px; }
+#playerMechCanvas { width: 100%; height: 100%; }
+#playerMechBox.firing { animation: recoil .35s ease-out; }
+@keyframes recoil { 0% { transform: translateX(0);} 40% { transform: translateX(-14px);} 100% { transform: translateX(0);} }
+
+/* Снаряд (трассер выстрела) */
+.tracer {
+  position: absolute; height: 4px; border-radius: 2px;
+  background: linear-gradient(90deg, transparent, var(--neon-cyan), #fff);
+  box-shadow: 0 0 12px var(--neon-cyan);
+  animation: shot .28s linear forwards;
+}
+@keyframes shot { from { opacity: 1; } to { opacity: 0; } }
+
+/* Взрыв при уничтожении */
+.boom {
+  position: absolute; border-radius: 50%; pointer-events: none;
+  background: radial-gradient(circle, #fff 5%, #ffb347 30%, #ff4d4d 55%, transparent 70%);
+  animation: boomAnim .7s ease-out forwards;
+}
+@keyframes boomAnim { from { transform: scale(.2); opacity: 1; } to { transform: scale(2.6); opacity: 0; } }
+
+#logBox {
+  margin-top: 14px; height: 110px; overflow-y: auto;
+  font-family: "Consolas", monospace; font-size: .78rem; color: #8fd3ff;
+  background: rgba(4,8,14,.8); border: 1px solid var(--panel-border); padding: 10px;
+}
+#logBox .warn { color: var(--neon-amber); }
+#logBox .kill { color: #7dff9b; }
+
+/* ============================================================
+   ЭКРАН «КАРТА ГОРОДА»
+   ============================================================ */
+.city-map {
+  position: relative;
+  height: 560px;
+  border: 1px solid var(--panel-border);
+  border-radius: 6px;
+  overflow: hidden;
+  background: linear-gradient(180deg, #241b31 0%, #171a28 45%, #10141f 100%);
+}
+/* Дороги */
+.city-map::before {
+  content: "";
+  position: absolute; inset: 0;
+  background:
+    linear-gradient(0deg, transparent 0 47%, #2b2f3d 47% 53%, transparent 53%) ,
+    linear-gradient(90deg, transparent 0 30%, #2b2f3d 30% 35%, transparent 35% 70%, #2b2f3d 70% 74%, transparent 74%);
+  opacity: .8;
+}
+/* Разрушенные здания — силуэты */
+.ruin {
+  position: absolute; background: #191d2b; border-top: 3px solid #303750;
+  box-shadow: inset 0 0 20px rgba(0,0,0,.7);
+}
+.ruin::after { /* окна со светом */
+  content: "";
+  position: absolute; inset: 12% 18%;
+  background:
+    repeating-linear-gradient(0deg, rgba(255,179,71,.35) 0 6px, transparent 6px 22px),
+    repeating-linear-gradient(90deg, rgba(53,240,255,.25) 0 6px, transparent 6px 20px);
+  mix-blend-mode: screen;
+}
+.radiotower {
+  position: absolute; width: 6px; height: 150px; background: #3a4258;
+}
+.radiotower::before {
+  content: ""; position: absolute; top: -12px; left: -10px; width: 26px; height: 26px;
+  border-radius: 50%; background: #ff4d4d; box-shadow: 0 0 20px #ff4d4d;
+  animation: blink 1.6s infinite;
+}
+@keyframes blink { 0%,100% {opacity:1;} 50% {opacity:.2;} }
+
+/* Интерактивные локации */
+.location {
+  position: absolute;
+  width: 150px;
+  transform: translate(-50%, -50%);
+  text-align: center;
+  cursor: pointer;
+  z-index: 10;
+  transition: transform .2s;
+}
+.location:hover { transform: translate(-50%, -50%) scale(1.08); }
+.loc-icon {
+  width: 62px; height: 62px; margin: 0 auto 8px;
+  border-radius: 50%;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 1.7rem;
+  border: 2px solid;
+  animation: pulseRing 2.2s infinite;
+  background: rgba(10,14,22,.85);
+}
+@keyframes pulseRing {
+  0% { box-shadow: 0 0 0 0 rgba(53,240,255,.5); }
+  70% { box-shadow: 0 0 0 16px rgba(53,240,255,0); }
+  100% { box-shadow: 0 0 0 0 rgba(53,240,255,0); }
+}
+.loc-name { font-weight: 800; font-size: .82rem; letter-spacing: 1px; text-shadow: 0 2px 6px #000; }
+.loc-desc { font-size: .68rem; color: #93a7bf; }
+.loc-danger { font-size: .65rem; margin-top: 3px; letter-spacing: 2px; }
+.danger-low  { color: #7dff9b; }
+.danger-med  { color: var(--neon-amber); }
+.danger-high { color: #ff6b6b; }
+
+/* Панель задания при клике на локацию */
+#missionPanel {
+  margin-top: 16px;
+  display: none;
+}
+#missionPanel.visible { display: block; animation: fadein .3s; }
+#missionPanel h3 { color: var(--neon-cyan); letter-spacing: 2px; margin-bottom: 8px; }
+#missionPanel p { font-size: .88rem; color: #c9d8ea; line-height: 1.6; margin-bottom: 12px; }
+.mission-actions { display: flex; gap: 10px; flex-wrap: wrap; }
+.btn-go {
+  background: linear-gradient(90deg, #16a34a, #0b6e34);
+  border: none; color: #fff; padding: 12px 22px; cursor: pointer;
+  letter-spacing: 2px; text-transform: uppercase; font-weight: 700;
+  clip-path: polygon(8px 0, 100% 0, calc(100% - 8px) 100%, 0 100%);
+}
+.btn-back { background: rgba(40,50,70,.8); border: 1px solid #55627c; color: #cfe; padding: 12px 22px; cursor: pointer; letter-spacing: 1px; }
+
+footer {
+  text-align: center; color: #4a5a70; font-size: .7rem; padding: 20px; letter-spacing: 1px;
+}
+
+/* ============================================================
+   ПОЛЕ БОЯ: изометрическая карта 16x16 (вид сверху-сбоку, как в
+   Diablo II / Fallout 1). Рендер — Canvas, анимации движения,
+   походки меха и оружия — программные (см. JS-секцию «БОЙ»).
+   ============================================================ */
+#screenBattle .battle-wrap { display:flex; gap:14px; flex-wrap:wrap; align-items:flex-start; }
+/* Полотно поля боя — те же правила масштабирования, что у полигона */
+#battleCanvas {
+  display:block;
+  background:#0a1018; border:1px solid var(--line,#2a3b52); border-radius:8px;
+  cursor:crosshair; image-rendering:auto; touch-action:manipulation;
+  width:940px; max-width:100%; height:auto; box-shadow:0 0 30px rgba(0,0,0,.6) inset;
+}
+.battle-side { flex:1 1 260px; min-width:250px; display:flex; flex-direction:column; gap:12px; }
+.turn-banner {
+  text-align:center; font-weight:bold; letter-spacing:3px; padding:10px;
+  border:1px solid #2a3b52; border-radius:6px; background:rgba(10,18,28,.85);
+  color:#ffd23f; text-shadow:0 0 12px rgba(255,210,63,.5); transition:.2s;
+}
+.turn-banner.enemy-phase { color:#ff5d5d; text-shadow:0 0 12px rgba(255,93,93,.5); }
+.hpbar { position:relative; height:14px; background:#131c29; border:1px solid #33475e; border-radius:3px; overflow:hidden; }
+.hpbar i { position:absolute; left:0; top:0; bottom:0; background:linear-gradient(90deg,#3ad6c4,#7ef2e2); transition:width .3s; }
+.hpbar.low i { background:linear-gradient(90deg,#c4574a,#ff8a70); }
+.stat-line { font-size:.8rem; color:#c9d8ea; display:flex; justify-content:space-between; margin-top:4px; }
+#unitInfo { font-size:.82rem; color:#cfe3f5; line-height:1.5; min-height:74px; }
+#unitInfo b { color:#ffd23f; letter-spacing:1px; }
+#battleLog { max-height:180px; overflow-y:auto; font-family:monospace; font-size:.72rem; background:rgba(5,10,16,.8); border:1px solid #223044; padding:8px; border-radius:6px; }
+#battleLog div { padding:1px 0; color:#9fb4cc; }
+#battleLog .dmg { color:#ff8a70; } #battleLog .kill { color:#ffd23f; } #battleLog .heal { color:#7ef2e2; }
+.battle-controls button { width:100%; margin-top:8px; }
+@media (max-width:900px){ #screenBattle .battle-wrap{flex-direction:column;} }
+</style>
+</head>
+<body>
+
+<!-- ===================== НАВИГАЦИЯ ===================== -->
+<header>
+  <div class="logo">NEON<span>RUST</span> // МЕХА-ПРОТОКОЛ 2077</div>
+  <button class="nav-btn active" data-screen="screenHangar">Ангар</button>
+  <button class="nav-btn" data-screen="screenRoom">Комната пилота</button>
+  <button class="nav-btn" data-screen="screenTraining">Тренировочный ангар</button>
+  <button class="nav-btn" data-screen="screenCity">Карта города</button>
+  <button class="nav-btn" data-screen="screenBattle">Поле боя 16×16</button>
+</header>
+
+<!-- ===================== ЭКРАН 1: АНГАР ===================== -->
+<section id="screenHangar" class="screen visible">
+  <h2 class="screen-title">Ангар №7 — Сборка меха</h2>
+  <p class="screen-sub">Выберите комплекты узлов. Смена детали мгновенно пересчитывает суммарные характеристики.</p>
+
+  <div class="hangar-grid">
+    <!-- Живой просмотр меха на Canvas -->
+    <div id="mechStage">
+      <!-- width/height задаются в JS (attachCanvases): canvas должен быть
+           ШИРЕ, чем ромб карты 16×16 (832+58 px), иначе мехи и клетки
+           «съезжают» за правый край полотна -->
+      <canvas id="mechCanvas" width="440" height="420" style="background:#0a1018;border:1px solid #2a3b52;border-radius:8px;"></canvas>
+      <div class="mech-label">ОБЪЕКТ: «ГОНЧИЙ-7» // СТАТУС: ОНЛАЙН</div>
+      <div class="warn-stripes"></div>
+    </div>
+
+    <div>
+      <!-- Четыре слота кастомизации -->
+      <div class="slots">
+        <div class="slot">
+          <h4>⚙ Правая рука</h4>
+          <select id="slotRightArm"></select>
+          <div class="detail-info" id="infoRightArm"></div>
+        </div>
+        <div class="slot">
+          <h4>⚙ Левая рука</h4>
+          <select id="slotLeftArm"></select>
+          <div class="detail-info" id="infoLeftArm"></div>
+        </div>
+        <div class="slot">
+          <h4>⚙ Торс</h4>
+          <select id="slotTorso"></select>
+          <div class="detail-info" id="infoTorso"></div>
+        </div>
+        <div class="slot">
+          <h4>⚙ Ноги</h4>
+          <select id="slotLegs"></select>
+          <div class="detail-info" id="infoLegs"></div>
+        </div>
+        <div class="slot">
+          <h4>🔫 Основное оружие</h4>
+          <select id="slotWeapon"></select>
+          <div class="detail-info" id="infoWeapon"></div>
+        </div>
+      </div>
+
+      <!-- Суммарные статы -->
+      <div class="stats-bar" id="statsBar">
+        <div class="stat"><div class="val" id="stPower">0</div><div class="name">Сила</div></div>
+        <div class="stat"><div class="val" id="stSpeed">0</div><div class="name">Скорость</div></div>
+        <div class="stat"><div class="val" id="stCargo">0</div><div class="name">Запас груза, т</div></div>
+        <div class="stat" id="wrapWeight"><div class="val" id="stWeight">0</div><div class="name">Вес, т</div></div>
+        <div class="stat"><div class="val" id="stHp">0</div><div class="name">ХП</div></div>
+      </div>
+
+      <button class="btn-primary" onclick="goScreen('screenTraining')">▶ Испытать в тренировочном ангаре</button>
+      <button class="btn-primary" style="background:linear-gradient(90deg,#35f0ff,#1899ab)" onclick="goScreen('screenRoom')">🏠 В комнату пилота</button>
+    </div>
+  </div>
+</section>
+
+<!-- ===================== ЭКРАН 2: КОМНАТА ПИЛОТА ===================== -->
+<section id="screenRoom" class="screen">
+  <h2 class="screen-title">Комната пилота</h2>
+  <p class="screen-sub">Личное дело каждого кандидата в кабине. Нажмите на папку, чтобы открыть досье.</p>
+
+  <div class="room">
+    <div class="window-view"></div>
+    <div class="desk"></div>
+    <div class="lamp"></div>
+    <div class="mug"></div>
+    <!-- Пар над кружкой -->
+    <div class="steam"><i></i><i></i><i></i></div>
+
+    <!-- ПИЛОТЫ СИДЯТ ЗА СТОЛОМ (аниме-фигурки из CSS, с анимациями
+         дыхания, поворотов головы, взгляда, моргания и руки с планшетом) -->
+    <div class="pilot boy" title="Каэдзима «Искра» Рю">
+      <div class="p-torso"><div class="p-stripe"></div></div>
+      <div class="p-head">
+        <div class="p-hair-b"></div>
+        <div class="p-eye l"><div class="p-pupil"></div><div class="p-lid"></div></div>
+        <div class="p-eye r"><div class="p-pupil"></div><div class="p-lid"></div></div>
+        <div class="p-blush l"></div><div class="p-blush r"></div>
+      </div>
+      <div class="p-arm"></div>
+    </div>
+    <div class="pilot girl" title="Мира «Тихоня» Соколова" style="animation-delay:-2s;">
+      <div class="p-torso"><div class="p-stripe"></div></div>
+      <div class="p-head" style="animation-delay:-3s;">
+        <div class="p-hair-g"></div>
+        <div class="p-eye l"><div class="p-pupil"></div><div class="p-lid"></div></div>
+        <div class="p-eye r"><div class="p-pupil"></div><div class="p-lid"></div></div>
+        <div class="p-blush l"></div><div class="p-blush r"></div>
+      </div>
+      <div class="p-arm" style="animation-delay:-1.4s;"></div>
+    </div>
+
+    <!-- Папка «Пилот-парень» -->
+    <div class="folder boy" onclick="openDossier('boy')" title="Открыть досье">
+      <div class="tab"></div>
+      <div class="cover">
+        <div class="avatar">
+          <div class="hair-boy"></div>
+          <div class="face">
+            <div class="eye l"></div><div class="eye r"></div>
+            <div class="blush l"></div><div class="blush r"></div>
+          </div>
+        </div>
+        <div class="fname">ДЕЛО №А-17<br>«ПИЛОТ-ПАРЕНЬ»</div>
+        <div class="hint">[ клик — открыть ]</div>
+      </div>
+    </div>
+
+    <!-- Папка «Пилот-девушка» -->
+    <div class="folder girl" onclick="openDossier('girl')" title="Открыть досье">
+      <div class="tab"></div>
+      <div class="cover">
+        <div class="avatar">
+          <div class="hair-girl"></div>
+          <div class="face">
+            <div class="eye l"></div><div class="eye r"></div>
+            <div class="blush l"></div><div class="blush r"></div>
+          </div>
+        </div>
+        <div class="fname">ДЕЛО №Б-04<br>«ПИЛОТ-ДЕВУШКА»</div>
+        <div class="hint">[ клик — открыть ]</div>
+      </div>
+    </div>
+  </div>
+
+  <button class="btn-primary" onclick="goScreen('screenHangar')">🔧 Вернуться в ангар</button>
+</section>
+
+<!-- Модальные окна досье -->
+<div class="modal" id="modalBoy" onclick="if(event.target===this)closeModal('modalBoy')">
+  <div class="dossier">
+    <div class="stamp">СЕКРЕТНО</div>
+    <h3>КАДЗИМА «ИСКРА» РЮ</h3>
+    <div class="rank">Позывной: ИСКРА • Класс: штурмовик • Ранг: лейтенант</div>
+    <p>Бывший уличный гонщик из Нижнего сектора. Попадает в зону поражения на слух и уходит от огня на инстинктах.
+       Любит лёгкие сборки и рискованные манёвры «в упор». Комиссия считала его недисциплинированным,
+       пока он не вытащил тройку механиков из горящего депо на одном гидравлическом захвате.</p>
+    <p><b>Сильные стороны:</b> реакция 0.14 с, работа на перегрузе, импровизация.<br>
+       <b>Слабые стороны:</b> игнорирует протокол отхода, спорит с ИИ-наводчиком.</p>
+    <p><i>«Мех — не коробка. Он чувствует, когда ты его уважаешь.»</i></p>
+    <button class="close-x" onclick="closeModal('modalBoy')">ЗАКРЫТЬ</button>
+  </div>
+</div>
+
+<div class="modal" id="modalGirl" onclick="if(event.target===this)closeModal('modalGirl')">
+  <div class="dossier pink">
+    <div class="stamp">СЕКРЕТНО</div>
+    <h3>МИРА «ТИХОНЯ» СОКОЛОВА</h3>
+    <div class="rank">Позывной: ТИХОНЯ • Класс: снайпер-тактик • Ранг: капитан</div>
+    <p>Выпускница закрытой академии «Купол-9». Ведёт огонь с дистанции двух километров и ведёт учёт каждой тонны
+       баланса машины: её сборки всегда на 12% легче стандарта. Ходят слухи, что она разговаривает со своим мехом
+       — и мех отвечает снижением расхода энергии.</p>
+    <p><b>Сильные стороны:</b> математическая точность, экономия боезапаса, холоднокровие.<br>
+       <b>Слабые стороны:</b> избегает ближнего боя, долго принимает решение о входе в бой.</p>
+    <p><i>«Три выстрела — три цели. Четвёртый — это расточительство.»</i></p>
+    <button class="close-x" onclick="closeModal('modalGirl')">ЗАКРЫТЬ</button>
+  </div>
+</div>
+
+<!-- ===================== ЭКРАН 3: ТРЕНИРОВОЧНЫЙ АНГАР ===================== -->
+<section id="screenTraining" class="screen">
+  <h2 class="screen-title">Тренировочный ангар — Полигон «Эхо»</h2>
+  <p class="screen-sub">Полигон «Эхо» — <b>то же изометрическое поле 16×16, что и в бою</b>, но мехи не ходят:
+     враги стоят на позициях. Два действия за такт: сначала <b>ХОД</b>, потом <b>АТАКА</b>.
+     Голубая сетка — куда дойдёте (зависит от ног), оранжевая — куда стреляет оружие.
+     Повреждения рук и ног напрямую влияют на движение и огонь. Клик по врагу — ответный огонь по вам.</p>
+
+  <div class="range-controls">
+    <button id="btnToHangar">🔧 В ангар</button>
+    <button id="btnTrReset">↺ Восстановить полигон</button>
+  </div>
+
+  <div class="tr-wrap">
+    <!-- Полотно полигона: та же изометрия 16×16, что и на поле боя.
+         Обёртка relative нужна для плашки «загрузка сцены».
+         width/height задаёт JS (attachCanvases) — ромб карты 832 px
+         должен целиком помещаться на полотне 940 px -->
+    <div class="iso-stage">
+      <canvas id="trainingCanvas" width="940" height="700"></canvas>
+      <!-- КНОПКА «НАЧАТЬ БОЙ»: карта под плашкой уже собрана (мехи,
+           враги, сетки) — игрок видит заставку и по кнопке начинает бой -->
+      <div class="scene-loading on" id="trLoading">
+        <span>ПОЛИГОН «ЭХО» · СЕКТОР РАЗВЁРНУТ</span>
+        <button class="start-fight-btn" id="btnTrStart">▶ НАЧАТЬ БОЙ</button>
+      </div>
+    </div>
+
+    <div class="tr-side">
+      <div class="turn-banner" id="trBanner">ТАКТ 1 · ДЕЙСТВИЕ: ХОД</div>
+
+      <!-- ДВЕ КНОПКИ ДЕЙСТВИЙ: сначала ход, затем атака -->
+      <div class="act-buttons">
+        <button class="act-btn ready active-move" id="btnActMove">👣 ХОД<small>кнопка 1 · клик по голубой сетке</small></button>
+        <button class="act-btn" id="btnActFire" disabled>🎯 АТАКА<small>кнопка 2 · клик по врагу</small></button>
+      </div>
+
+      <!-- Состояние узлов: повреждения рук и ног влияют на движение и оружие -->
+      <div class="panel" style="position:static;display:block;">
+        <h3 style="color:#ffd23f;letter-spacing:2px;margin-bottom:8px;">УЗЛЫ МЕХА</h3>
+        <div class="dmg-grid">
+          <div class="dmg-cell"><b>ПРАВАЯ РУКА (оружие)</b>
+            <div class="dmg-bar" id="barRArm"><i style="width:100%"></i></div>
+            <div class="dmg-note" id="noteRArm">оружие активно</div></div>
+          <div class="dmg-cell"><b>ЛЕВАЯ РУКА (щит)</b>
+            <div class="dmg-bar" id="barLArm"><i style="width:100%"></i></div>
+            <div class="dmg-note" id="noteLArm">защита цела</div></div>
+          <div class="dmg-cell"><b>ТОРС (ядро)</b>
+            <div class="dmg-bar" id="barTorso"><i style="width:100%"></i></div>
+            <div class="dmg-note" id="noteTorso">реактор стабилен</div></div>
+          <div class="dmg-cell"><b>НОГИ (шасси)</b>
+            <div class="dmg-bar" id="barLegs"><i style="width:100%"></i></div>
+            <div class="dmg-note" id="noteLegs">полная скорость шага</div></div>
+        </div>
+      </div>
+
+      <div class="panel" style="position:static;display:block;">
+        <h3 style="color:#35f0ff;letter-spacing:2px;margin-bottom:6px;">ИНФО</h3>
+        <div id="trInfo">Наведите курсор на мех или клетку.</div>
+      </div>
+
+      <div id="trLog"></div>
+    </div>
+  </div>
+</section>
+
+<!-- ===================== ЭКРАН 4: КАРТА ГОРОДА ===================== -->
+<section id="screenCity" class="screen">
+  <h2 class="screen-title">Карта города «Новая Гелия-9»</h2>
+  <p class="screen-sub">Выберите локацию, чтобы получить briefing по заданию.</p>
+
+  <div class="city-map" id="cityMap">
+    <!-- Декорации: руины и вышка -->
+    <div class="ruin" style="left:6%; top:12%; width:90px; height:150px;"></div>
+    <div class="ruin" style="left:18%; top:30%; width:70px; height:110px;"></div>
+    <div class="ruin" style="left:55%; top:8%;  width:110px; height:170px;"></div>
+    <div class="ruin" style="left:75%; top:26%; width:80px; height:130px;"></div>
+    <div class="ruin" style="left:38%; top:60%; width:100px; height:120px;"></div>
+    <div class="ruin" style="left:82%; top:64%; width:90px; height:150px;"></div>
+    <div class="radiotower" style="left:30%; top:6%;"></div>
+
+    <!-- Три интерактивные локации -->
+    <div class="location" style="left:22%; top:34%;" onclick="selectMission('depot')">
+      <div class="loc-icon" style="border-color:#35f0ff;">🏭</div>
+      <div class="loc-name">РЖАВЫЙ ДЕПО</div>
+      <div class="loc-desc">Заброшенное метродепо</div>
+      <div class="loc-danger danger-low">УГРОЗА: НИЗКАЯ</div>
+    </div>
+
+    <div class="location" style="left:56%; top:52%;" onclick="selectMission('market')">
+      <div class="loc-icon" style="border-color:#ffb347;">🛒</div>
+      <div class="loc-name">ЗЕЛЁНЫЙ БАЗАР</div>
+      <div class="loc-desc">Контрабандный рынок у оранжерей</div>
+      <div class="loc-danger danger-med">УГРОЗА: СРЕДНЯЯ</div>
+    </div>
+
+    <div class="location" style="left:82%; top:22%;" onclick="selectMission('crater')">
+      <div class="loc-icon" style="border-color:#ff4d9d;">☢️</div>
+      <div class="loc-name">КРАТЕР «ЭХО»</div>
+      <div class="loc-desc">Эпицентр падения орбитального лифта</div>
+      <div class="loc-danger danger-high">УГРОЗА: ВЫСОКАЯ</div>
+    </div>
+  </div>
+
+  <!-- Панель брифинга выбранного задания -->
+  <div class="panel" id="missionPanel">
+    <h3 id="misTitle"></h3>
+    <p id="misText"></p>
+    <div class="mission-actions">
+      <button class="btn-go" onclick="deployMech()">🚀 Выступить (перейти на поле боя)</button>
+      <button class="btn-back" onclick="document.getElementById('missionPanel').classList.remove('visible')">✕ Отбой</button>
+    </div>
+  </div>
+</section>
+
+<!-- ===================== ЭКРАН 5: ПОЛЕ БОЯ (пошаговый, изометрия 16x16) ===================== -->
+<section id="screenBattle" class="screen">
+  <h2 class="screen-title">Поле боя — сектор высадки</h2>
+  <p class="screen-sub">Пошаговый бой, вид сверху-сбоку (изометрия 16×16, как в Diablo II / Fallout 1).
+     Клик по подсвеченной клетке — перемещение (анимация шагов меха). Клик по врагу — огонь (анимация оружия и трассеров).
+     Клавиши: 1–4 — выбор действия, Пробел — следующий юнит.</p>
+
+  <div class="battle-wrap">
+    <!-- Главное полотно боя + плашка загрузки сектора (как заставка в Diablo/Fallout) -->
+    <div class="iso-stage">
+      <canvas id="battleCanvas" width="940" height="700"></canvas>
+      <!-- КНОПКА «НАЧАТЬ БОЙ»: пока она не нажата, карта под плашкой
+           уже собрана (мехи/враги/сетки хода и огня) — как заставка
+           Diablo/Fallout перед боем -->
+      <div class="scene-loading on" id="btLoading">
+        <span>СЕКТОР ВЫСАДКИ · РАЗВЁРТЫВАНИЕ ЗАВЕРШЕНО</span>
+        <button class="start-fight-btn" id="btnBtStart">▶ НАЧАТЬ БОЙ</button>
+      </div>
+    </div>
+
+    <div class="battle-side">
+      <div class="turn-banner" id="turnBanner">ХОД ИГРОКА</div>
+
+      <div class="panel" style="position:static;display:block;">
+        <h3 style="color:#ffd23f;letter-spacing:2px;margin-bottom:6px;">МЕХ ПИЛОТА</h3>
+        <div class="hpbar" id="playerHpBar"><i style="width:100%"></i></div>
+        <div class="stat-line"><span>ХП</span><span id="playerHpTxt">—</span></div>
+        <div class="stat-line"><span>Сила / Скорость</span><span id="playerPwSp">—</span></div>
+        <div class="stat-line"><span>Броня (вес)</span><span id="playerArmor">—</span></div>
+      </div>
+
+      <div class="panel" style="position:static;display:block;">
+        <h3 style="color:#35f0ff;letter-spacing:2px;margin-bottom:6px;">ИНФО</h3>
+        <div id="unitInfo">Наведите курсор на юнита или клетку.</div>
+      </div>
+
+      <div class="battle-controls">
+        <button id="btnEndTurn">⏭ Завершить ход (X)</button>
+        <button id="btnBtReset">↺ Новый бой</button>
+        <button id="btnBtHangar">🔧 В ангар</button>
+      </div>
+
+      <div id="battleLog"></div>
+    </div>
+  </div>
+</section>
+
+<footer>NEON RUST // фанатский прототип • один HTML-файл • без сборщиков • спрайты: spritepaint.com</footer>
+
+<script>
+"use strict";
+/* ============================================================
+   ДАННЫЕ ИГРЫ — детали трёх комплектов и оружие
+   Каждая деталь: power (сила), speed (скорость), cargo (грузопод.),
+   weight (вес в тоннах), hp (прочность корпуса)
+   ============================================================ */
+const PARTS = {
+  rightArm: [
+    { id:"ra_l", set:"Лёгкий",  name:"Манипулятор «Стриж»",  power:6,  speed:14, cargo:3,  weight:1.2, hp:40 },
+    { id:"ra_m", set:"Средний", name:"Сервокулак «Оса»",     power:12, speed:9,  cargo:6,  weight:2.8, hp:70 },
+    { id:"ra_h", set:"Тяжёлый", name:"Гидромолот «Буря»",    power:22, speed:3,  cargo:9,  weight:5.5, hp:110 },
+  ],
+  leftArm: [
+    { id:"la_l", set:"Лёгкий",  name:"Щит-план «Лист»",      power:4,  speed:15, cargo:2,  weight:1.0, hp:50 },
+    { id:"la_m", set:"Средний", name:"Захват «Скоба»",       power:10, speed:10, cargo:7,  weight:2.6, hp:75 },
+    { id:"la_h", set:"Тяжёлый", name:"Плазменный наруч «Гроза»", power:18, speed:4, cargo:10, weight:5.2, hp:120 },
+  ],
+  torso: [
+    { id:"to_l", set:"Лёгкий",  name:"Каркас «Паутина»",     power:3,  speed:12, cargo:5,  weight:2.0, hp:80 },
+    { id:"to_m", set:"Средний", name:"Бронекорпус «Черепаха»", power:6, speed:8,  cargo:10, weight:4.5, hp:140 },
+    { id:"to_h", set:"Тяжёлый", name:"Бастион «Крепость»",   power:8,  speed:4,  cargo:16, weight:8.0, hp:220 },
+  ],
+  legs: [
+    { id:"le_l", set:"Лёгкий",  name:"Прыгучки «Кузнечик»",  power:2,  speed:18, cargo:3,  weight:1.5, hp:55 },
+    { id:"le_m", set:"Средний", name:"Шагоходы «Мул»",       power:5,  speed:11, cargo:9,  weight:3.5, hp:90 },
+    { id:"le_h", set:"Тяжёлый", name:"Танкоступы «Мамонт»",  power:9,  speed:5,  cargo:15, weight:6.5, hp:150 },
+  ],
+};
+
+/* Оружие влияет на СИЛУ и СКОРОСТЬ (тяжёлое оружие замедляет и требует грузоподъёмности) */
+const WEAPONS = [
+  { id:"w1", name:"Игла-пушка 20мм",     power:8,  speed:6,  weight:0.8, cargoReq:4,  desc:"быстрая, слабый урон" },
+  { id:"w2", name:"Двуствол «Картечь»",  power:14, speed:2,  weight:2.2, cargoReq:8,  desc:"дробовой залп вблизи" },
+  { id:"w3", name:"Рельса «Гром»",       power:26, speed:-4, weight:4.8, cargoReq:14, desc:"мощь, но тяжёлая и долгая перезарядка" },
+  { id:"w4", name:"Мультимет «Оса»",     power:11, speed:4,  weight:1.6, cargoReq:6,  desc:"баланс лёгкого и среднего" },
+];
+
+/* ШАССИ (рама меха) определяет ПРЕДЕЛЬНУЮ грузоподъёмность всей машины.
+   Это создаёт осмысленный выбор комплектов: вся «тяжёлая» сборка на лёгком
+   шасси уходит в перегрузку и теряет скорость. Значения видны в панели статов
+   как «Груз X/Y», где Y — предел шасси выбранного торса. */
+const CHASSIS_CARGO_LIMIT = { 0: 16, 1: 24, 2: 38 }; // Лёгкий / Средний / Тяжёлый торс
+
+/* Текущая сборка (индексы выбранных деталей) */
+const loadout = { rightArm: 1, leftArm: 1, torso: 1, legs: 1, weapon: 1 };
+
+/* Цвета меха по классу выбранного торса: лёгкий — бирюзовый, средний — серый, тяжёлый — багровый */
+const MECH_COLORS = {
+  0: { main:"#3ad6c4", dark:"#1f8a7d", accent:"#aef7ee" },
+  1: { main:"#8fa3bd", dark:"#4d5f78", accent:"#dbe7f7" },
+  2: { main:"#c4574a", dark:"#7a2c25", accent:"#ffc36b" },
+};
+
+/* ============================================================
+   НАВИГАЦИЯ МЕЖДУ ЭКРАНАМИ + ГАРАНТИРОВАННАЯ ЗАГРУЗКА СЦЕН.
+
+   Раньше на «Поле боя» и «Тренировочном ангаре» появлялся пустой
+   интерфейс (без клеток хода и мехов) либо экран разворачивался
+   до готовности движка. Теперь переход устроен как в Diablo/Fallout:
+   при входе на боевой экран показывается плашка «ЗАГРУЗКА СЕКТОРА»,
+   в этот же момент сцена (карта 16×16, враги, сетки хода/огня)
+   перестраивается под текущую сборку из ангара, и только после
+   этого плашка гаснет — игрок видит уже готовое поле с мехами.
+   ============================================================ */
+const LOADING_SCREENS = { screenBattle: true, screenTraining: true };
+
+function goScreen(id) {
+  document.querySelectorAll(".screen").forEach(s => s.classList.toggle("visible", s.id === id));
+  document.querySelectorAll(".nav-btn").forEach(b => b.classList.toggle("active", b.dataset.screen === id));
+  window.scrollTo({ top: 0 });
+  if (LOADING_SCREENS[id]) bootIsoScene(id);
+}
+
+/* Перезапуск конкретной изометрической сцены под ТЕКУЩУЮ сборку меха
+   (loadout из ангара). Порядок как в Diablo/Fallout:
+   1) плашка «СЕКТОР РАЗВЁРНУТ» + КНОПКА «НАЧАТЬ БОЙ» — сразу;
+   2) сцена собирается ПОД НЕЙ (карта, мехи, враги, сетки);
+   3) заставка остаётся до явного нажатия кнопки «НАЧАТЬ БОЙ»
+      (см. обработчики btnBtStart / btnTrStart внизу скрипта). */
+function bootIsoScene(id) {
+  const banner = document.getElementById(id === "screenBattle" ? "btLoading" : "trLoading");
+  if (banner) banner.classList.add("on");           // заставка видна, карта строится под ней
+  /* Кадр задержки: браузер успевает отрисовать плашку ДО тяжёлой сборки сцены */
+  requestAnimationFrame(() => requestAnimationFrame(() => {
+    try {
+      if (id === "screenBattle") startBattle();     // карта + враги + подсветки
+      else setupTraining();                          // полигон «Эхо»: мишени + зоны
+    } catch (e) { console.error("bootIsoScene:", e); }
+    /* Заставку гасит ТОЛЬКО кнопка «НАЧАТЬ БОЙ» — игрок видит её всегда */
+  }));
+}
+
+/* Спрятать заставку конкретной сцены (вызывается кнопкой «НАЧАТЬ БОЙ») */
+function hideSceneOverlay(id) {
+  const banner = document.getElementById(id === "screenBattle" ? "btLoading" : "trLoading");
+  if (banner) banner.classList.remove("on");
+}
+
+document.querySelectorAll(".nav-btn").forEach(b =>
+  b.addEventListener("click", () => goScreen(b.dataset.screen)));
+
+/* ============================================================
+   АНГАР: построение селектов, пересчёт статов, отрисовка меха
+   ============================================================ */
+function fillSelect(selId, list, loadKey) {
+  const el = document.getElementById(selId);
+  el.innerHTML = list.map((p, i) =>
+    `<option value="${i}" ${i === loadout[loadKey] ? "selected" : ""}>[${p.set}] ${p.name}</option>`
+  ).join("");
+  el.addEventListener("change", () => {
+    loadout[loadKey] = +el.value;
+    refresh();
+  });
+}
+
+/* Суммарные характеристики = сумма всех деталей + модификаторы оружия.
+   Перегрузка наступает, если общий вес превышает ПРЕДЕЛ ШАССИ (грузоподъёмность
+   торса-рамы), а не просто сумму показателей «груз» деталей. */
+function totalStats() {
+  let t = { power: 0, speed: 0, cargo: 0, weight: 0, hp: 0 };
+  for (const key of ["rightArm", "leftArm", "torso", "legs"]) {
+    const p = PARTS[key][loadout[key]];
+    t.power += p.power; t.speed += p.speed; t.cargo += p.cargo;
+    t.weight += p.weight; t.hp += p.hp;
+  }
+  const w = WEAPONS[loadout.weapon];
+  t.power += w.power;
+  t.speed += w.speed;
+  t.weight += w.weight;
+  /* Предел шасси и перегрузка: штраф к скорости за каждую тонну сверх лимита */
+  t.limit = CHASSIS_CARGO_LIMIT[loadout.torso];
+  if (t.weight > t.limit) t.speed -= Math.round((t.weight - t.limit) * 4);
+  t.speed = Math.max(1, t.speed);
+  t.overloaded = t.weight > t.limit;
+  return t;
+}
+
+function showDetailInfo(infoId, lines) {
+  document.getElementById(infoId).innerHTML = lines.join("<br>");
+}
+
+function refresh() {
+  /* Инфо-строки под каждым селектом */
+  for (const key of ["rightArm", "leftArm", "torso", "legs"]) {
+    const p = PARTS[key][loadout[key]];
+    showDetailInfo("info" + key[0].toUpperCase() + key.slice(1), [
+      `Сила ${p.power} • Ск ${p.speed} • Груз ${p.cargo}`,
+      `Вес ${p.weight} т • ХП ${p.hp}`
+    ]);
+  }
+  const w = WEAPONS[loadout.weapon];
+  showDetailInfo("infoWeapon", [`Сила +${w.power} • Скорость ${w.speed >= 0 ? "+" : ""}${w.speed}`, `Вес ${w.weight} т • Нужна грузоподъёмность ≥ ${w.cargoReq} (${w.desc})`]);
+
+  /* Обновление панели статов */
+  const t = totalStats();
+  stPower.textContent = t.power;
+  stSpeed.textContent = t.speed;
+  /* «Грузоподъёмность» показывает запас: сколько тонн можно довезти до перегрузки шасси */
+  stCargo.textContent = Math.max(0, Math.round((t.limit - t.weight) * 10) / 10);
+  stWeight.textContent = t.weight.toFixed(1);
+  stHp.textContent = t.hp;
+  wrapWeight.classList.toggle("overload", t.overloaded);
+  drawMech(mechCanvas, false);
+}
+
+/* ---------- Отрисовка меха на Canvas (стилизованный аниме-мех) ---------- */
+let bob = 0; // фаза «дыхания» меха в ангаре
+function drawMech(canvas, onRange) {
+  const ctx = canvas.getContext("2d");
+  const W = canvas.width, H = canvas.height;
+  ctx.clearRect(0, 0, W, H);
+
+  const col = MECH_COLORS[loadout.torso];
+  const cx = W / 2;
+  const yBase = H - 40 + Math.sin(bob) * 3; // лёгкое покачивание всей машины
+  const scale = onRange ? 0.78 : 1;
+
+  ctx.save();
+  ctx.translate(cx, yBase);
+  ctx.scale(scale, scale);
+
+  const armBulk = [0.8, 1, 1.5][loadout.rightArm];   // толщина руки зависит от класса
+  const legBulk = [0.7, 1, 1.6][loadout.legs];
+  const torsoW  = [70, 92, 128][loadout.torso];
+
+  /* --- Ноги --- */
+  ctx.fillStyle = col.dark;
+  for (const side of [-1, 1]) {
+    const lx = side * 26 * legBulk;
+    roundRect(ctx, lx - 14 * legBulk, -90, 28 * legBulk, 70, 6); // бедро
+    ctx.fill();
+    roundRect(ctx, lx - 20 * legBulk, -26, 40 * legBulk, 26, 4); // стопа
+    ctx.fill();
+  }
+  /* --- Тело --- */
+  ctx.fillStyle = col.main;
+  roundRect(ctx, -torsoW / 2, -200, torsoW, 115, 12); ctx.fill();
+  ctx.fillStyle = col.dark;
+  roundRect(ctx, -torsoW / 2 + 8, -185, torsoW - 16, 30, 6); ctx.fill(); // нагрудная плита
+  ctx.fillStyle = col.accent;
+  ctx.fillRect(-6, -160, 12, 60);                        // светящаяся рейка реактора
+  ctx.shadowColor = col.accent; ctx.shadowBlur = 18;
+  ctx.fillRect(-4, -155, 8, 50); ctx.shadowBlur = 0;     // свечение
+  /* --- Голова --- */
+  ctx.fillStyle = col.main;
+  roundRect(ctx, -22, -238, 44, 38, 8); ctx.fill();
+  ctx.fillStyle = "#ffe14d";                              // визор
+  ctx.shadowColor = "#ffe14d"; ctx.shadowBlur = 12;
+  ctx.fillRect(-16, -224, 32, 8); ctx.shadowBlur = 0;
+  ctx.fillStyle = col.accent;                             // «антенны-уши»
+  ctx.beginPath(); ctx.moveTo(-22, -232); ctx.lineTo(-40, -252); ctx.lineTo(-26, -222); ctx.fill();
+  ctx.beginPath(); ctx.moveTo(22, -232); ctx.lineTo(40, -252); ctx.lineTo(26, -222); ctx.fill();
+  /* --- Плечи и руки --- */
+  for (const side of [-1, 1]) {
+    const isR = side === 1;
+    const bulk = isR ? armBulk : [0.8, 1, 1.5][loadout.leftArm];
+    const sx = side * (torsoW / 2 + 6);
+    ctx.fillStyle = col.dark;
+    roundRect(ctx, sx - side * 4 - 18 * bulk, -205, 36 * bulk, 44, 8); ctx.fill(); // наплечник
+    ctx.fillStyle = col.main;
+    roundRect(ctx, sx + side * 6 - 10 * bulk, -165, 20 * bulk, 78, 6); ctx.fill(); // предплечье
+  }
+  /* --- Оружие на правой руке --- */
+  ctx.fillStyle = "#9aa7b8";
+  const wx = torsoW / 2 + 16;
+  const wShape = [
+    () => { roundRect(ctx, wx, -120, 66, 12, 3); },                       // Игла: тонкий ствол
+    () => { roundRect(ctx, wx, -126, 58, 24, 4); },                       // Картечь: толстый
+    () => { roundRect(ctx, wx, -132, 92, 16, 2); ctx.fillStyle="#556072"; // Рельса: длинная с рамкой
+            roundRect(ctx, wx + 40, -140, 10, 32, 2); },
+    () => { roundRect(ctx, wx, -124, 60, 18, 5); },                       // Оса: средняя
+  ][loadout.weapon];
+  wShape(); ctx.fill();
+  ctx.fillStyle = "#35f0ff";
+  ctx.shadowColor = "#35f0ff"; ctx.shadowBlur = 10;
+  ctx.fillRect(wx + 50, -118, 8, 6); ctx.shadowBlur = 0;                  // дульная подсветка
+
+  /* --- Тень под мехом --- */
+  ctx.restore();
+  ctx.fillStyle = "rgba(0,0,0,.45)";
+  ctx.beginPath();
+  ctx.ellipse(cx, H - 22, 90 * scale, 12, 0, 0, Math.PI * 2);
+  ctx.fill();
+}
+
+/* Вспомогательный: скруглённый прямоугольник */
+function roundRect(ctx, x, y, w, h, r) {
+  ctx.beginPath();
+  ctx.moveTo(x + r, y);
+  ctx.arcTo(x + w, y, x + w, y + h, r);
+  ctx.arcTo(x + w, y + h, x, y + h, r);
+  ctx.arcTo(x, y + h, x, y, r);
+  ctx.arcTo(x, y, x + w, y, r);
+  ctx.closePath();
+}
+
+/* Инициализация селектов ангара. При СМЕНЕ ЛЮБОЙ детали или оружия
+   вызывается refreshAll() -> applyLoadoutToUnits(): тот же мех с той же
+   бронёй и стволом появляется и на полигоне «Эхо», и на поле боя. */
+fillSelect("slotRightArm", PARTS.rightArm, "rightArm");
+fillSelect("slotLeftArm",  PARTS.leftArm,  "leftArm");
+fillSelect("slotTorso",    PARTS.torso,    "torso");
+fillSelect("slotLegs",     PARTS.legs,     "legs");
+fillSelect("slotWeapon",   WEAPONS,        "weapon");
+
+/* --- функции боевого движка (изометрия/ходьба/огонь) объявляются ниже
+       в скрипте как function — они «всплывают» и уже доступны здесь --- */
+applyLoadoutToUnits();
+
+/* Единая точка синхронизации СБОРКИ: любая смена детали/оружия в
+   ангаре мгновенно обновляет мех и на ПОЛИГОНЕ «ЭХО», и НА ПОЛЕ БОЯ.
+   Если бой/полигон ещё не запущены (btPlayer/trPlayer === null) —
+   сборка применится автоматически при следующем startBattle()/setupTraining(),
+   которые читают totalStats() из текущего loadout. */
+function applyLoadoutToUnits() {
+  const t = totalStats();
+  const combat = { cls:loadout.torso, weapon:loadout.weapon,
+    hp:t.hp, maxHp:t.hp, power:t.power, armor:Math.round(t.weight*3),
+    move: Math.max(2, Math.min(6, Math.round(t.speed/4))),
+    fireRange: 5 + (2 - loadout.torso),
+    actions: t.speed >= 20 ? 2 : 1 };
+  if (typeof trPlayer !== "undefined" && trPlayer) {
+    Object.assign(trPlayer, combat, { partHp: makePartHp(t) });
+    computeTrainZones(); refreshTrainNodes();
+  }
+  if (typeof btPlayer !== "undefined" && btPlayer) {
+    Object.assign(btPlayer, combat, { partHp: makePartHp(t) });
+    /* если сейчас ход игрока — пересветить сетки от новой позиции/статов */
+    if (btPhase === "player") computeReach(btPlayer);
+    refreshBattleHud();
+  }
+}
+
+/* Отрисовка вашего меха на полигоне и в бою (общая функция обновления) */
+function refreshAll() {
+  refresh();                    // панель статов + мех в ангаре
+  applyLoadoutToUnits();        // та же сборка живёт на полигоне и на поле боя
+}
+
+/* Цикл «дыхания» меха в ангаре: redraw только когда экран ангара виден — экономим CPU */
+setInterval(() => {
+  if (document.getElementById("screenHangar").classList.contains("visible")) {
+    bob += 0.08;
+    drawMech(mechCanvas, false);
+  }
+}, 50);
+
+/* ============================================================
+   КОМНАТА ПИЛОТА: досье
+   ============================================================ */
+function openDossier(who) {
+  document.getElementById(who === "boy" ? "modalBoy" : "modalGirl").classList.add("open");
+}
+function closeModal(id) { document.getElementById(id).classList.remove("open"); }
+
+/* ============================================================
+   ТРЕНИРОВОЧНЫЙ ПОЛИГОН «ЭХО»: тот же движок изометрии 16×16,
+   что и на поле боя, но вражеские мехи СТОЯТ НА ПОЗИЦИЯХ
+   (не ходят). За такт игрок делает ДВА ДЕЙСТВИЯ В СТРОГОМ
+   ПОРЯДКЕ: сначала ХОД (кнопка 1 + клик по голубой сетке),
+   затем АТАКА (кнопка 2 + клик по врагу в оранжевой сетке —
+   «до куда стреляет»). Повреждения рук и ног влияют на зону
+   хода и огонь; мишени отвечают залпом, если достреливают.
+   ============================================================ */
+/* Все переменные полигона (trUnits, trPlayer, trAct, trRef...) объявлены
+   ВЫШЕ, в блоке «СОСТОЯНИЕ ОБЕИХ ИЗОМЕТРИЧЕСКИХ СЦЕН» — здесь только
+   логика. Полотно trCanvas/trCtx будут привязаны в attachCanvases(). */
+
+function trLog(msg, cls) {
+  const box = document.getElementById("trLog");
+  box.innerHTML += `<div class="${cls||""}">[ТАКТ ${trTurn}] ${msg}</div>`;
+  box.scrollTop = box.scrollHeight;
+}
+
+/* --- расстановка полигона: ровная площадка без завалов --- */
+function setupTraining() {
+  const t = totalStats();
+  trRef.tiles = null;                        // полигон ровный: препятствий нет
+  trUnits = [];
+  trPlayer = {
+    id:"tp", name:"ВАШ МЕХ", team:"player", cls:loadout.torso, weapon:loadout.weapon,
+    gx:3, gy:3, hp:t.hp, maxHp:t.hp, power:t.power, armor:Math.round(t.weight*3),
+    move: Math.max(2, Math.min(6, Math.round(t.speed/4))),
+    fireRange: 5 + (2 - loadout.torso),
+    partHp: makePartHp(t),
+    anim:{ phase:"idle", walkPath:null, walkT:0, aimAng:0, recoil:0, bob:0 },
+  };
+  trUnits.push(trPlayer);
+  /* учебные цели стоят на позициях и сами не наступают — только отвечают огнём */
+  const dummies = [
+    { id:"td_l", name:"МИШЕНЬ ЛЁГКАЯ",  cls:0, gx:9,  gy:3,  hp:120, dmg:8,  armor:2,  move:4, fireRange:5 },
+    { id:"td_m", name:"МИШЕНЬ СРЕДНЯЯ", cls:1, gx:11, gy:7,  hp:220, dmg:12, armor:6,  move:3, fireRange:5 },
+    { id:"td_h", name:"МИШЕНЬ ТЯЖЁЛАЯ", cls:2, gx:7,  gy:11, hp:420, dmg:18, armor:12, move:2, fireRange:6 },
+  ];
+  dummies.forEach(d => trUnits.push({ ...d, team:"enemy", maxHp:d.hp, weapon:1+d.cls,
+    partHp: makePartHp({hp:d.hp}),
+    anim:{ phase:"idle", walkPath:null, walkT:0, aimAng:0, recoil:0, bob:Math.random()*6 } }));
+  trTurn = 1; trAct = "idle"; trMoved = false; fxTrain.length = 0;   // очистка эффектов полигона
+  document.getElementById("trLog").innerHTML = "";
+  trLog("Полигон «Эхо» готов. Порядок действий за такт: кнопка ХОД → кнопка АТАКА.");
+  computeTrainZones();
+  refreshTrainNodes();
+  updateTrainUi();
+  /* Перезапуск полигона (кнопка «Восстановить», вход на экран):
+     показываем заставку с кнопкой «НАЧАТЬ БОЙ» */
+  const banner = document.getElementById("trLoading");
+  if (banner && document.getElementById("screenTraining").classList.contains("visible")) {
+    banner.classList.add("on");
+  }
+}
+
+/* --- зоны: голубая сетка хода (ноги!) и оранжевая сетка огня (рука-оружие!) --- */
+function computeTrainZones() {
+  if (!trPlayer) return;
+  const savedMove = trPlayer.move;           // ноги повреждены -> зона хода сжимается
+  trPlayer.move = effMove(trPlayer);
+  computeReachInto(trReachCells, trPlayer, trUnits, null);
+  trPlayer.move = savedMove;
+  const fr = trPlayer.fireRange;             // правая рука повреждена -> дальность падает
+  trPlayer.fireRange = effFireRange(trPlayer);
+  computeFireCells(trFireCells, trPlayer);
+  trPlayer.fireRange = fr;
+}
+
+/* --- панель узлов: полоски состояния + подписи влияния на ход и огонь --- */
+function refreshTrainNodes() {
+  if (!trPlayer) return;
+  const map = [["barRArm","noteRArm","rArm"],["barLArm","noteLArm","lArm"],["barTorso","noteTorso","torso"],["barLegs","noteLegs","legs"]];
+  map.forEach(([barId, noteId, key]) => {
+    const p = trPlayer.partHp[key];
+    const bar = document.getElementById(barId);
+    bar.querySelector("i").style.width = (p.pct*100)+"%";
+    bar.classList.toggle("warnfill", p.pct < 0.6);
+    bar.closest(".dmg-cell").classList.toggle("hurt", p.pct < 0.6);
+    let note = "";
+    if (key === "legs") note = p.pct<=0 ? "НОГИ ВЫБИТЫ: мех не идёт (зона хода пуста)"
+      : p.pct<0.35 ? "сильно изношены: шаг 1 клетка"
+      : p.pct<0.6 ? "повреждены: шаг вдвое короче"
+      : `полная скорость шага (${effMove(trPlayer)} кл)`;
+    if (key === "rArm") note = p.pct<=0 ? "РУКА-ОРУЖИЕ УНИЧТОЖЕНА: стрелять нечем"
+      : p.pct<0.6 ? "трясётся: урон ниже, мажет, −2 кл дальности"
+      : `оружие активно (огонь до ${effFireRange(trPlayer)} кл)`;
+    if (key === "lArm") note = p.pct<=0 ? "ЩИТ ПРОБИТ: урон по вам не гасится"
+      : p.pct<0.6 ? "щит треснул: хуже гасит урон" : "защита цела";
+    if (key === "torso") note = p.pct<=0 ? "ТОРС РАЗРУШЕН" : p.pct<0.6 ? "ядро нестабильно: ремонт!" : "реактор стабилен";
+    document.getElementById(noteId).textContent = note;
+  });
+}
+
+/* --- кнопки ХОД / АТАКА: два действия за такт, строго по порядку --- */
+const btnActMove = document.getElementById("btnActMove");
+const btnActFire = document.getElementById("btnActFire");
+function updateTrainUi() {
+  const b = document.getElementById("trBanner");
+  b.style.color = ""; b.style.textShadow = "";
+  if (trAct === "over") b.textContent = "ПОЛИГОН ОСТАНОВЛЕН · ВОССТАНОВИТЕ ЕГО КНОПКОЙ";
+  else if (trAct === "busy") b.textContent = `ТАКТ ${trTurn} · ВЫПОЛНЯЕТСЯ ПРИКАЗ…`;
+  else if (trAct === "move") b.textContent = `ТАКТ ${trTurn} · ДЕЙСТВИЕ 1: ХОД (клик по голубой сетке)`;
+  else b.textContent = `ТАКТ ${trTurn} · ДЕЙСТВИЕ 2: АТАКА (клик по врагу в оранжевой сетке)`;
+  btnActMove.classList.toggle("active-move", trAct==="move");
+  btnActMove.classList.toggle("ready", trAct==="move");
+  btnActMove.disabled = trAct !== "move";
+  btnActFire.classList.toggle("active-fire", trAct==="fire");
+  btnActFire.classList.toggle("ready", trAct==="fire");
+  btnActFire.disabled = trAct !== "fire";
+}
+btnActMove.onclick = () => { if (trAct==="move") trLog("Режим ХОДА активен: кликните по голубой сетке зоны движения."); };
+btnActFire.onclick = () => {
+  if (trAct !== "fire") return;
+  if (effFireRange(trPlayer) === 0) { trLog("Правая рука-оружие уничтожена — стрелять нечем! Конец такта.", "warn"); finishTrainTurn(); return; }
+  trLog("Режим ОГНЯ: кликните по врагу внутри оранжевой сетки («до куда стреляет»).");
+};
+
+/* --- приказ полигона: клик по canvas --- */
+function trainClick(px, py) {
+  if (trAct !== "move" && trAct !== "fire") return;
+  const { gx, gy } = screenToIso(px, py);
+  const foe = trUnits.find(u => u.team==="enemy" && u.hp>0 && u.gx===gx && u.gy===gy);
+  if (trAct === "move") {
+    if (foe) { trLog("Сначала ХОД (кнопка 1): атака доступна после перемещения.", "warn"); return; }
+    if (trReachCells.has(gy*BT_MAP+gx)) {
+      startMove(trUnits, trRef, trPlayer, {gx, gy}, () => {
+        computeTrainZones();               // новая позиция — новые зоны
+        trAct = "fire"; trRef.p = "fire"; updateTrainUi();
+        trLog("Ход сделан. Теперь АТАКА (кнопка 2).");
+      });
+      trRef.p = "busy"; updateTrainUi();
+    } else trLog("Вне зоны хода. Голубая сетка — куда дойдут ноги (битые ноги сокращают её).");
+    return;
+  }
+  /* фаза АТАКИ */
+  if (!foe) { trLog("Атака: кликните по вражескому меху на карте."); return; }
+  const dist = Math.abs(foe.gx-trPlayer.gx)+Math.abs(foe.gy-trPlayer.gy);
+  const range = effFireRange(trPlayer);
+  if (range === 0) { trLog("Рука-оружие цеха? Нет — она уничтожена. Стрелять нечем!", "warn"); return; }
+  if (dist > range) { trLog(`МИШЕНЬ вне огня: ${dist} кл, ствол дотягивает до ${range} (оранжевая сетка).`, "warn"); return; }
+  orderFire(trRef, trPlayer, foe, () => afterTrainShot());
+  trRef.p = "busy"; updateTrainUi();
+}
+
+/* --- после нашего выстрела: живые мишени в радиусе отвечают залпом, такт закрыт --- */
+function afterTrainShot() {
+  if (checkTrainOver()) return;
+  const shooters = trUnits.filter(u => u.team==="enemy" && u.hp>0 && !u._avenged &&
+    (Math.abs(u.gx-trPlayer.gx)+Math.abs(u.gy-trPlayer.gy)) <= effFireRange(u));
+  if (!shooters.length) { finishTrainTurn(); return; }
+  let i = 0;
+  const nextRetaliation = () => {
+    if (i >= shooters.length || trPlayer.hp <= 0) { finishTrainTurn(); return; }
+    const s = shooters[i++];
+    s._avenged = true;
+    trLog(`${s.name} отвечает огнём!`);
+    orderFire(trRef, s, trPlayer, nextRetaliation);
+  };
+  setTimeout(nextRetaliation, 350);
+}
+function finishTrainTurn() {
+  trUnits.forEach(u => u._avenged = false);
+  if (checkTrainOver()) return;
+  trTurn++;
+  trAct = "move"; trRef.p = "move";
+  computeTrainZones();                     // повреждения прошлого такта сразу меняют сетки
+  refreshTrainNodes();
+  updateTrainUi();
+}
+function checkTrainOver() {
+  if (trPlayer.hp <= 0) {
+    trAct = "over"; trRef.p = "over"; updateTrainUi();
+    showBannerOn(document.getElementById("trBanner"), "МЕХ РАЗБИТ · СБРОС ПОЛИГОНА", "#ff5d5d");
+    trLog("Корпус разрушен. Нажмите «Восстановить полигон».", "dmg");
+    return true;
+  }
+  if (!trUnits.some(u => u.team==="enemy" && u.hp>0)) {
+    trAct = "over"; trRef.p = "over"; updateTrainUi();
+    showBannerOn(document.getElementById("trBanner"), "ВСЕ МИШЕНИ УНИЧТОЖЕНЫ!", "#ffd23f");
+    trLog("Полигон зачищен — отличная работа, пилот!", "kill");
+    return true;
+  }
+  return false;
+}
+function showBannerOn(el, text, color) { el.textContent = text; el.style.color = color; el.style.textShadow = `0 0 14px ${color}`; }
+document.getElementById("btnTrReset").onclick = () => setupTraining();
+document.getElementById("btnToHangar").onclick = () => goScreen("screenHangar");
+
+/* --- мышь над полигоном: инфо о юните/клетке + hover-подсветка --- */
+function trPoint(ev) {
+  const r = trCanvas.getBoundingClientRect();
+  return { x:(ev.clientX-r.left)*(trCanvas.width/r.width), y:(ev.clientY-r.top)*(trCanvas.height/r.height) };
+}
+function attachTrainingEvents() {
+  trCanvas.addEventListener("mousemove", ev => {
+    const p = trPoint(ev);
+    const c = screenToIso(p.x, p.y);
+    trHoverCell = (c.gx>=0&&c.gy>=0&&c.gx<BT_MAP&&c.gy<BT_MAP) ? c : null;
+    trHoverU = trUnits.find(u => u.hp>0 && u.gx===c.gx && u.gy===c.gy) || null;
+    const info = document.getElementById("trInfo");
+    if (trHoverU) {
+      const ph = trHoverU.partHp;
+      info.innerHTML = `<b>${trHoverU.name}</b><br>ХП ${trHoverU.hp}/${trHoverU.maxHp}<br>` +
+        (trHoverU.team==="enemy"
+          ? `<span style="color:#ff8a70">ЦЕЛЬ: клик в фазе АТАКИ</span><br>рука:${Math.round(ph.rArm.pct*100)}% ноги:${Math.round(ph.legs.pct*100)}%`
+          : `ход ${effMove(trHoverU)} кл · огонь до ${effFireRange(trHoverU)} кл`);
+    } else if (trHoverCell) {
+      const k = trHoverCell.gy*BT_MAP+trHoverCell.gx;
+      info.innerHTML = `Клетка [${trHoverCell.gx}, ${trHoverCell.gy}] · ` +
+        (trReachCells.has(k) ? "<span style='color:#35f0ff'>зона ХОДА</span>"
+         : trFireCells.has(k) ? "<span style='color:#ffb347'>зона ОГНЯ (дальность ствола)</span>"
+         : "вне зон");
+    }
+  });
+  trCanvas.addEventListener("click", ev => { const p = trPoint(ev); trainClick(p.x, p.y); });
+}
+
+/* --- рендер полигона: та же изометрия, что и бой; мишени стоят (idle-покачивание) --- */
+function renderTraining() {
+  if (!trCtx || !document.getElementById("screenTraining").classList.contains("visible")) { requestAnimationFrame(renderTraining); return; }
+  trCtx.clearRect(0, 0, trCanvas.width, trCanvas.height);
+  const g = trCtx.createLinearGradient(0,0,0,trCanvas.height);
+  g.addColorStop(0,"#0b1322"); g.addColorStop(.5,"#0d1726"); g.addColorStop(1,"#0a1018");
+  trCtx.fillStyle = g; trCtx.fillRect(0,0,trCanvas.width,trCanvas.height);
+  /* оранжевая сетка огня показана ВСЕГДА (и в фазе хода, и в фазе атаки):
+     игрок заранее видит «до куда стреляет ствол» при выборе позиции */
+  drawIsometricTiles(trCtx, null, trAct==="move" ? trReachCells : null, trFireCells, trHoverCell);
+  stepUnitsAnim(trUnits);                  // продвижение анимаций ходьбы/залпа
+  const sorted = [...trUnits].filter(u=>u.hp>0 || u.deadAt).sort((a,b)=>{
+    const pa=isoToScreen(a.gx,a.gy), pb=isoToScreen(b.gx,b.gy);
+    return (pa.y - pb.y) || (pa.x - pb.x);
+  });
+  sorted.forEach(u => {
+    if (u.hp <= 0) {
+      const p = isoToScreen(u.gx,u.gy);
+      trCtx.globalAlpha = 0.25; trCtx.fillStyle = "#555";
+      trCtx.fillRect(p.x-14, p.y-24, 28, 20); trCtx.globalAlpha = 1;
+      return;
+    }
+    const p = unitPixelPos(u);
+    drawMechIso(trCtx, u, p.x, p.y + BT_TILE_H/2, u===trPlayer && trAct!=="over", u===trHoverU);
+  });
+  updateAndDrawFx(trCtx, fxTrain);
+  requestAnimationFrame(renderTraining);
+}
+/* ВАЖНО: запуск рендера и setupTraining() — внизу скрипта, после
+   attachCanvases(): до привязки полотен trCtx === null и цикл сам
+   «спит», пока экран не готов. */
+
+/* ============================================================
+   РЕНДЕР ПОЛЯ БОЯ (восстановлен после рефакторинга): тот же
+   изометрический движок, но с тайлами (завалы/радиолужи) и
+   подсветкой зон активного юнита.
+   ============================================================ */
+function renderBattle() {
+  if (!btCtx || !document.getElementById("screenBattle").classList.contains("visible")) { requestAnimationFrame(renderBattle); return; }
+  btCtx.clearRect(0, 0, btCanvas.width, btCanvas.height);
+  const g = btCtx.createLinearGradient(0,0,0,btCanvas.height);
+  g.addColorStop(0,"#0a1120"); g.addColorStop(.55,"#0c1524"); g.addColorStop(1,"#090f16");
+  btCtx.fillStyle = g; btCtx.fillRect(0,0,btCanvas.width,btCanvas.height);
+  /* сетки: голубая — шаг, оранжевая — дальность ствола (видна всегда) */
+  drawIsometricTiles(btCtx, btTiles,
+    btPhase === "player" ? btReachCells : null,
+    btPhase === "player" ? btFireCells : null,
+    btHover);
+  stepUnitsAnim(btUnits);                  // анимация шагов и залпов
+  /* сортировка «сзади вперёд» — правильная изометрическая перекрытость */
+  const sorted = [...btUnits].filter(u=>u.hp>0 || u.deadAt).sort((a,b)=>{
+    const pa=isoToScreen(a.gx,a.gy), pb=isoToScreen(b.gx,b.gy);
+    return (pa.y - pb.y) || (pa.x - pb.x);
+  });
+  sorted.forEach(u => {
+    if (u.hp <= 0) {                       // остов уничтоженного меха
+      const p = isoToScreen(u.gx,u.gy);
+      btCtx.globalAlpha = 0.25; btCtx.fillStyle = "#555";
+      btCtx.fillRect(p.x-14, p.y-24, 28, 20); btCtx.globalAlpha = 1;
+      return;
+    }
+    const p = unitPixelPos(u);
+    drawMechIso(btCtx, u, p.x, p.y + BT_TILE_H/2,
+      u===btPlayer && btPhase==="player", u===btHoverU);
+  });
+  updateAndDrawFx(btCtx, fxBattle);
+  requestAnimationFrame(renderBattle);
+}
+
+/* ============================================================
+   КАРТА ГОРОДА: задания
+   ============================================================ */
+const MISSIONS = {
+  depot: {
+    title: "ЗАДАЧА: ЗАЧИСТКА РЖАВОГО ДЕПО",
+    text: "В метродепо обосновалась банда мародёров на списанных шахтёрских экзоскелетах. " +
+          "Задача: вывести из строя три учебно-боевых узла и найти склад сервоприводов. " +
+          "Рекомендуемая сборка: лёгкая или средняя. Тяжёлый мех не пройдёт в доки — пол рухнет.",
+  },
+  market: {
+    title: "ЗАДАЧА: КОНВОЙ ЗЕЛЁНОГО БАЗАРА",
+    text: "Торговцы оранжерейного района наняли охрану каравана с семенами и фильтрами воды. " +
+          "Разведданные: два дрона-перехватчика и броневик «Шершень». " +
+          "Грузоподъёмность меха после сопровождения должна позволять взять 8+ т гуманитарного груза.",
+  },
+  crater: {
+    title: "ЗАДАЧА: АНОМАЛИЯ КРАТЕРА «ЭХО»",
+    text: "В эпицентре падения орбитального лифта фиксируются блуждающие плазменные штормы и " +
+          "активировавшийся автоматический страж порядка — тяжёлый мех «Судья». " +
+          "Требуется тяжёлая броня и мощное оружие. Статус добровольца: необратим.",
+  },
+};
+function selectMission(key) {
+  const m = MISSIONS[key];
+  misTitle.textContent = m.title;
+  misText.textContent = m.text;
+  missionPanel.classList.add("visible");
+}
+function deployMech() {
+  /* Выступление с карты города: разворачиваем мех на пошаговом поле боя 16x16 */
+  goScreen("screenBattle");
+  startBattle(misTitle.textContent.replace("ЗАДАЧА: ", ""));
+}
+
+/* --- эффекты (трассеры, взрывы): ДВА РАЗДЕЛЬНЫХ ПУЛА — по одному
+       на каждое полотно (бой и полигон). Объявлены ДО кода полигона
+       и боя, которые на них ссылаются. --- */
+const fxTrain = [], fxBattle = [];
+
+/* ============================================================
+   СОСТОЯНИЕ ОБЕИХ ИЗОМЕТРИЧЕСКИХ СЦЕН (ЧИТАЕТСЯ В РАННЕЙ
+   ФАЗЕ ЗАГРУЗКИ!). Полотны #trainingCanvas и #battleCanvas
+   находятся НИЖЕ этого скрипта в разметке, поэтому getElementById
+   здесь вернул бы null («нет клеток хода и мехов»). Решение:
+   все переменные и функции движка объявляются ЗДЕСЬ, до первого
+   использования; привязка к реальным canvas выполняется позже,
+   когда они появятся в DOM (см. attachCanvases() ниже).
+   ============================================================ */
+/* --- изометрическая сетка 16×16: размеры ромба клетки --- */
+const BT_TILE_W = 52, BT_TILE_H = 26;      // ширина/высота ромба клетки
+const BT_MAP = 16;                          // карта 16 x 16 клеток
+/* ПОЛНОЕ ИЗОМЕТРИЧЕСКОГО РОМБА: ширина 16×52 = 832 px. Полотно боя
+   шире ромба (см. CANVAS_W ниже) — иначе карта «съезжает» вправо и
+   правый край поля теряется за границой canvas. */
+const ISO_DIAMOND_W = BT_MAP * BT_TILE_W;   // 832 px — ширина ромба карты
+const CANVAS_W = 940, CANVAS_H = 700;       // размеры полотен боя/полигона
+/* Вершина ромба по X: ромб ЦЕНТРУЕТСЯ на полотне (слева и справа от
+   него остаётся одинаковый запас ~54 px). Это чинит «съехавшее вправо» поле. */
+const BATTLE_ORIGIN_X = Math.round((CANVAS_W - ISO_DIAMOND_W) / 2) + BT_TILE_W / 2; // ≈106
+const BATTLE_ORIGIN_Y = 70;                 // верхняя точка левого угла старта
+
+/* --- полигон «Эхо» --- */
+/* ВНИМАНИЕ: эти переменные объявлены ЧЕРЕЗ var (а не let) намеренно.
+   Ранняя фаза загрузки (applyLoadoutToUnits, обработчики кнопок) может
+   обратиться к ним ДО выполнения этого участка кода — let/const в таком
+   случае упали бы с «Cannot access before initialization» (TDZ) и вся
+   страница осталась бы без мехов и сеток. var при этом безопасен: до
+   инициализации он просто равен undefined. */
+var trUnits = [], trPlayer = null;
+var trReachCells = new Set(), trFireCells = new Set();
+var trHoverCell = null, trHoverU = null;
+var trAct = "idle";                         // idle | move | fire | busy | over
+var trTurn = 1;
+var trMoved = false;                        // был ли ХОД в текущем такте
+var trCanvas = null, trCtx = null;          // реальные полотна — после attachCanvases()
+
+/* --- поле боя --- (те же причины для var, см. комментарий выше) */
+var btCanvas = null, btCtx = null;          // реальные полотна — после attachCanvases()
+var btTiles = null;                         // 0 = пол, 1 = завал, 2 = радиолужа
+var btUnits = [];
+var btPlayer = null;
+var btPhase = "player";                     // player | enemy | busy | over
+var btActingUnit = null;
+var btReachCells = new Set();               // голубая сетка шага
+var btFireCells = new Set();                // оранжевая сетка огня
+var btHover = null, btHoverU = null;        // клетка/юнит под курсором
+var btTurnNum = 1;
+var btBattleToken = 0;                      // «номер приказа»: отменяет отложенные анимации старого боя
+
+/* «переменные хода» для общих функций движения/огня (у каждой сцены своя) */
+const trRef = { p:"player", tiles:null, fx:fxTrain, log:(m,c)=>trLog(m,c) };
+const btRef = { p:"player", tiles:null, fx:fxBattle, log:(m,c)=>btlLog(m,c) };
+
+/* ============================================================
+   ОБЩАЯ ИЗОМЕТРИЧЕСКАЯ СЕТКА 16×16 (используют её ПОЛЕ БОЯ
+   и ТРЕНИРОВОЧНЫЙ ПОЛИГОН «ЭХО») — вид сверху-сбоку в стиле
+   Diablo II / Fallout 1.
+   ------------------------------------------------------------
+   СПРАЙТЫ: мехи отрисованы программно на Canvas.
+   Если вы нарисовали своих мехов на https://spritepaint.com/ —
+   загрузите PNG, укажите путь в SPRITE_IMG ниже и раскомментируйте
+   img.drawImage(...) в функции drawMechIso(). Пока image не
+   загружен — рисуется процедурная графика.
+   Пример: const SPRITE_IMG = new Image(); SPRITE_IMG.src = "mech.png";
+   ============================================================ */
+/* BT_TILE_W/BT_MAP/BATTLE_ORIGIN_* объявлены ВЫШЕ (в блоке состояния сцен),
+   чтобы быть доступными на ранней фазе загрузки скрипта. */
+
+/* --- преобразование координат: клетка -> экран (изометрия), экран -> клетка --- */
+function isoToScreen(gx, gy) {
+  return { x: BATTLE_ORIGIN_X + (gx - gy) * BT_TILE_W / 2,
+           y: BATTLE_ORIGIN_Y + (gx + gy) * BT_TILE_H / 2 };
+}
+function screenToIso(px, py) {
+  const x = px - BATTLE_ORIGIN_X, y = py - BATTLE_ORIGIN_Y;
+  const gx = Math.floor((x / (BT_TILE_W / 2) + y / (BT_TILE_H / 2)) / 2);
+  const gy = Math.floor((y / (BT_TILE_H / 2) - x / (BT_TILE_W / 2)) / 2);
+  return { gx, gy };
+}
+
+/* --- A*-поиск пути по сетке (как в Diablo II — юнит идёт «тропинкой»).
+       Функция универсальна: принимает любой массив юнитов. --- */
+function occupiedIn(list, gx, gy, ignoreUnit) {
+  return list.some(u => u !== ignoreUnit && u.hp > 0 && u.gx === gx && u.gy === gy);
+}
+function walkableIn(list, gx, gy, unit, tiles) {
+  if (gx < 0 || gy < 0 || gx >= BT_MAP || gy >= BT_MAP) return false;
+  if (tiles && tiles[gy][gx] !== 0) return false;
+  return !occupiedIn(list, gx, gy, unit);
+}
+function findPathIn(from, to, unit, list, tiles) {
+  if (!walkableIn(list, to.gx, to.gy, unit, tiles)) return null;
+  const key = (x,y) => y*BT_MAP+x;
+  const open = [{ x:from.gx, y:from.gy, g:0, f:0, parent:null }];
+  const came = new Map();
+  const h = (x,y) => Math.abs(x-to.gx)+Math.abs(y-to.gy);
+  while (open.length) {
+    open.sort((a,b)=>a.f-b.f);
+    const cur = open.shift();
+    if (cur.x === to.gx && cur.y === to.gy) {
+      const path = []; let n = cur;
+      while (n) { path.unshift({gx:n.x, gy:n.y}); n = n.parent; }
+      return path.slice(1); // без стартовой клетки
+    }
+    came.set(key(cur.x,cur.y), true);
+    for (const [dx,dy] of [[1,0],[-1,0],[0,1],[0,-1],[1,1],[1,-1],[-1,1],[-1,-1]]) {
+      const nx = cur.x+dx, ny = cur.y+dy;
+      if (!walkableIn(list,nx,ny,unit,tiles) || came.has(key(nx,ny))) continue;
+      if (dx && dy) { // по диагонали нельзя срезать через два угла стен
+        if (!walkableIn(list,cur.x+dx,cur.y,unit,tiles) || !walkableIn(list,cur.x,cur.y+dy,unit,tiles)) continue;
+      }
+      const g = cur.g + (dx&&dy?1.41:1);
+      open.push({ x:nx, y:ny, g, f:g+h(nx,ny)*1.01, parent:cur });
+    }
+  }
+  return null;
+}
+
+/* --- flood-fill зоны хода на расстояние unit.move (для подсветки сеткой) --- */
+function computeReachInto(set, unit, list, tiles) {
+  set.clear();
+  if (!unit || unit.move <= 0) return;
+  let frontier = [{x:unit.gx,y:unit.gy,d:0}];
+  const seen = new Set([unit.gy*BT_MAP+unit.gx]);
+  while (frontier.length) {
+    const c = frontier.shift();
+    if (c.d > 0) set.add(c.y*BT_MAP+c.x);
+    if (c.d >= unit.move) continue;
+    for (const [dx,dy] of [[1,0],[-1,0],[0,1],[0,-1],[1,1],[1,-1],[-1,1],[-1,-1]]) {
+      const nx=c.x+dx, ny=c.y+dy, k=ny*BT_MAP+nx;
+      if (seen.has(k) || !walkableIn(list,nx,ny,unit,tiles)) continue;
+      if (dx&&dy && (!walkableIn(list,c.x+dx,c.y,unit,tiles)||!walkableIn(list,c.x,c.y+dy,unit,tiles))) continue;
+      seen.add(k); frontier.push({x:nx,y:ny,d:c.d+1});
+    }
+  }
+}
+
+/* ---曼хэттенская зона огня оружия: все клетки «до куда дотягивается ствол».
+       Подсвечиваются оранжевой сеткой и на полигоне, и в бою. --- */
+function computeFireCells(set, unit) {
+  set.clear();
+  if (!unit || unit.fireRange <= 0) return;
+  for (let dy=-unit.fireRange; dy<=unit.fireRange; dy++)
+    for (let dx=-unit.fireRange; dx<=unit.fireRange; dx++) {
+      const d = Math.abs(dx)+Math.abs(dy);
+      if (d === 0 || d > unit.fireRange) continue;
+      const gx = unit.gx+dx, gy = unit.gy+dy;
+      if (gx<0||gy<0||gx>=BT_MAP||gy>=BT_MAP) continue;
+      set.add(gy*BT_MAP+gx);
+    }
+}
+
+/* --- единый изометрический рендерer тайлов: принимается контекст any canvas --- */
+function drawIsometricTiles(ctx, tiles, reachSet, fireSet, hoverCell, opts) {
+  opts = opts || {};
+  for (let gy=0; gy<BT_MAP; gy++) for (let gx=0; gx<BT_MAP; gx++) {
+    const { x, y } = isoToScreen(gx, gy);
+    const t = tiles ? tiles[gy][gx] : 0;
+    ctx.beginPath();
+    ctx.moveTo(x, y); ctx.lineTo(x+BT_TILE_W/2, y+BT_TILE_H/2);
+    ctx.lineTo(x, y+BT_TILE_H); ctx.lineTo(x-BT_TILE_W/2, y+BT_TILE_H/2);
+    ctx.closePath();
+    let fill = ((gx+gy)%2) ? "#1b2636" : "#16202e";
+    if (t===2) fill = "#234028";                                  // радиоактивная лужа
+    /* оранжевая сетка зоны огня рисуется ПЕРВОЙ (нижний слой подсветок) */
+    if (fireSet && fireSet.has(gy*BT_MAP+gx)) fill = "rgba(255,179,71,.16)";
+    if (reachSet && reachSet.has(gy*BT_MAP+gx)) fill = "rgba(53,240,255,.22)"; // зона хода поверх
+    if (hoverCell && hoverCell.gx===gx && hoverCell.gy===gy) fill = "rgba(255,210,63,.35)";
+    ctx.fillStyle = fill; ctx.fill();
+    ctx.strokeStyle = "rgba(80,120,160,.18)"; ctx.stroke();
+    /* тонкая штриховка зоны огня на пустых клетках (чтобы сетка была заметна) */
+    if (fireSet && fireSet.has(gy*BT_MAP+gx) && !(reachSet && reachSet.has(gy*BT_MAP+gx))) {
+      ctx.strokeStyle = "rgba(255,179,71,.35)"; ctx.lineWidth = 1;
+      ctx.beginPath(); ctx.moveTo(x-BT_TILE_W/4, y+BT_TILE_H/2); ctx.lineTo(x, y+BT_TILE_H/4+1);
+      ctx.moveTo(x, y+BT_TILE_H*0.75); ctx.lineTo(x+BT_TILE_W/4, y+BT_TILE_H/2); ctx.stroke();
+      ctx.lineWidth = 1;
+    }
+    if (t===1) {                                      // обломок здания — «коробка» сбоку-сверху
+      const h = 22;
+      ctx.fillStyle = "#2c3a4e";
+      ctx.beginPath();
+      ctx.moveTo(x-BT_TILE_W/2, y+BT_TILE_H/2); ctx.lineTo(x, y+BT_TILE_H);
+      ctx.lineTo(x, y+BT_TILE_H-h); ctx.lineTo(x-BT_TILE_W/2, y+BT_TILE_H/2-h);
+      ctx.closePath(); ctx.fill();
+      ctx.fillStyle = "#3a4c66";
+      ctx.beginPath();
+      ctx.moveTo(x, y+BT_TILE_H); ctx.lineTo(x+BT_TILE_W/2, y+BT_TILE_H/2);
+      ctx.lineTo(x+BT_TILE_W/2, y+BT_TILE_H/2-h); ctx.lineTo(x, y+BT_TILE_H-h);
+      ctx.closePath(); ctx.fill();
+      ctx.fillStyle = "#506a8c";
+      ctx.beginPath();
+      ctx.moveTo(x, y-h); ctx.lineTo(x+BT_TILE_W/2, y+BT_TILE_H/2-h);
+      ctx.lineTo(x, y+BT_TILE_H-h); ctx.lineTo(x-BT_TILE_W/2, y+BT_TILE_H/2-h);
+      ctx.closePath(); ctx.fill();
+    }
+  }
+}
+
+/* --- функции эффектов: работают с переданным пулом (fxTrain / fxBattle) --- */
+function spawnTracerIn(pool, x1,y1,x2,y2,color) {
+  pool.push({ type:"tracer", x1, y1, x2, y2, t0:performance.now(), dur:260, color });
+  pool.push({ type:"muzzle", x:x1+14, y:y1, t0:performance.now(), dur:140 });
+}
+function spawnExplosionIn(pool, x, y) {
+  for (let i=0;i<16;i++) {
+    const ang = Math.random()*Math.PI*2, sp = 0.6+Math.random()*2.4;
+    pool.push({ type:"spark", x, y:y-26, vx:Math.cos(ang)*sp, vy:Math.sin(ang)*sp-1,
+                t0:performance.now(), dur:600+Math.random()*400,
+                color: ["#ffd23f","#ff8a5c","#ff4d9d"][i%3] });
+  }
+  pool.push({ type:"ring", x, y:y-20, t0:performance.now(), dur:520 });
+}
+function updateAndDrawFx(ctx, pool) {
+  const now = performance.now();
+  /* удаляем истёкшие эффекты из пула (splice — пул постоянный) */
+  for (let i = pool.length - 1; i >= 0; i--) if (now - pool[i].t0 >= pool[i].dur) pool.splice(i, 1);
+  pool.forEach(f => {
+    const k = (now - f.t0) / f.dur;
+    if (f.type==="tracer") {
+      ctx.strokeStyle = f.color; ctx.lineWidth = 2.5; ctx.globalAlpha = 1-k;
+      ctx.beginPath();
+      const ex = f.x1+(f.x2-f.x1)*Math.min(1,k*2), ey = f.y1+(f.y2-f.y1)*Math.min(1,k*2);
+      ctx.moveTo(f.x1,f.y1); ctx.lineTo(ex,ey); ctx.stroke(); ctx.globalAlpha = 1;
+    } else if (f.type==="muzzle") {
+      ctx.fillStyle = `rgba(255,230,140,${1-k})`;
+      ctx.beginPath(); ctx.arc(f.x,f.y,10*(1-k)+3,0,Math.PI*2); ctx.fill();
+    } else if (f.type==="spark") {
+      ctx.fillStyle = f.color; ctx.globalAlpha = 1-k;
+      ctx.fillRect(f.x+f.vx*k*60, f.y+f.vy*k*60+k*k*30, 3, 3); ctx.globalAlpha = 1;
+    } else if (f.type==="ring") {
+      ctx.strokeStyle = `rgba(255,140,80,${1-k})`; ctx.lineWidth = 3;
+      ctx.beginPath(); ctx.ellipse(f.x,f.y,60*k,30*k,0,0,Math.PI*2); ctx.stroke();
+    }
+  });
+}
+
+/* --- продвижение анимации ходьбы и залпа (общая для боя и полигона).
+       Вызывается каждый кадр из render-циклов с своим списком юнитов. --- */
+function stepUnitsAnim(units) {
+  units.forEach(u => {
+    if (u.hp<=0 && !u.deadAt) return;
+    const a = u.anim;
+    if (a.phase === "walk" && a.walkPath) {
+      a.walkT += 16 / a.stepDur;
+      if (a.walkT >= 1) {
+        a.walkT = 0; a.walkSeg++;
+        const cell = a.walkPath[a.walkSeg];
+        if (cell) { u.gx = cell.gx; u.gy = cell.gy; }
+        if (a.walkSeg >= a.walkPath.length-1) {
+          a.phase = "idle"; a.walkPath = null;
+          const cb = u._moveDone; u._moveDone = null;
+          if (cb) cb();                    // колбэк сам восстанавливает фазу хода
+        }
+      }
+    }
+    if (a.phase === "fire") {              // залп выполнен (отдача показана) — возврат в ожидание
+      a.phase = "idle";
+      const cb = u._fireDone; u._fireDone = null;
+      if (cb) cb();
+    }
+    if (u.hitFlash > 0) u.hitFlash -= 0.08;
+    if (u.armShake > 0) u.armShake -= 0.02; // дрожание повреждённой руки-оружия гаснет со временем
+  });
+}
+
+/* Позиция юнита между кадрами движения (интерполяция по пути) */
+function unitPixelPos(u) {
+  let gx = u.gx, gy = u.gy;
+  if (u.anim.phase === "walk" && u.anim.walkPath) {
+    const p = u.anim.walkPath;
+    const i = Math.min(u.anim.walkSeg, p.length-2);
+    const t = Math.min(1, u.anim.walkT);
+    gx = p[i].gx + (p[i+1].gx - p[i].gx) * t;
+    gy = p[i].gy + (p[i+1].gy - p[i].gy) * t;
+  }
+  return isoToScreen(gx, gy);
+}
+
+/* Отрисовка меха в изометрии: вид сверху-сбоку (ОБЩАЯ функция для
+   поля боя и полигона — ctx передаётся, чтобы рисовать на любом canvas).
+   Параметры: scale — размер по классу, colors — палитра,
+   walkPhase — фаза шага для анимации ног, aim/fire — анимация оружия.
+   ПОВРЕЖДЁННЫЕ УЗЛЫ: u.partHp.{legs,rArm,lArm,torso} < 60% дают тряску
+   походки (ноги) и дрожащее прицеливание (рука) — движение и огонь
+   ухудшаются визуально и в формулах урона/хода. */
+function drawMechIso(ctx, u, sx, sy, isActive, isHovered) {
+  const C = MECH_COLORS[u.cls];
+  const scale = [0.62, 0.85, 1.12][u.cls];
+  const w = 34*scale, h = 46*scale;
+  const anim = u.anim;
+  const now = performance.now();
+  const legsHurt = u.partHp ? (u.partHp.legs.pct < 0.6) : false;
+  const armHurt  = u.partHp ? (u.partHp.rArm.pct < 0.6) : false;
+  /* Походка: ноги ходят в противофазе, корпус покачивается (hop).
+     Повреждённые ноги — шарканье и перекос (перемещение хуже). */
+  let legL = 0, legR = 0, hop = 0, lean = 0;
+  if (anim.phase === "walk") {
+    const ph = now/anim.stepDur*Math.PI;
+    legL = Math.sin(ph)*5*scale; legR = -legL;
+    hop  = Math.abs(Math.sin(ph))*2.4*scale;
+    if (legsHurt) { lean = Math.sin(ph*0.5)*3*scale; legL *= 0.5; legR *= 0.5; } // волочит шаги
+  } else {
+    const idle = Math.sin(now/700 + anim.bob)*1.2;
+    legL = idle*0.3; legR = -idle*0.3; hop = idle*0.4;
+    if (legsHurt) lean = Math.sin(now/300)*1.6*scale; // стоит — «проседает» на битое шасси
+  }
+  /* Отдача оружия: ствол «отъезжает» назад и гаснет за 200 мс */
+  if (anim.recoil > 0) anim.recoil = Math.max(0, anim.recoil - 0.06);
+  const rec = anim.recoil * 7 * scale;
+  /* Прицеливание: плавный доворот ствола к цели; повреждённая рука — дрожь */
+  let want = 0;
+  if (anim.phase === "aim" || anim.phase === "fire") {
+    want = Math.atan2(anim.aimTarget.y - (sy-h), anim.aimTarget.x - sx);
+    anim.aimAng += (want - anim.aimAng) * 0.35;
+    if (armHurt) want += Math.sin(now/45)*0.12;         // ствол трясёт — точность ниже
+  } else anim.aimAng *= 0.9;
+  const facingLeft = (anim.phase==="aim"||anim.phase==="fire") ? Math.cos(anim.aimAng) < 0
+                   : (u.team==="enemy");
+  ctx.save();                            // сохраняем состояние ради зеркалирования спрайта
+  if (lean) { ctx.translate(sx, sy); ctx.rotate(lean*0.01); ctx.translate(-sx, -sy); }
+  if (facingLeft) { ctx.translate(sx, 0); ctx.scale(-1, 1); ctx.translate(-sx, 0); }
+  const topY = sy - h - 18*scale - hop;
+  /* тень */
+  ctx.fillStyle = "rgba(0,0,0,.35)";
+  ctx.beginPath(); ctx.ellipse(sx, sy+2, w*0.9, w*0.36, 0, 0, Math.PI*2); ctx.fill();
+  /* ноги (битые — красноватые искры-повреждения) */
+  ctx.fillStyle = legsHurt ? "#5a3a3a" : C.dark;
+  ctx.fillRect(sx-w*0.42, sy-16*scale+legL, w*0.3, 16*scale);
+  ctx.fillRect(sx+w*0.12, sy-16*scale+legR, w*0.3, 16*scale);
+  /* ступни */
+  ctx.fillStyle = "#222c3a";
+  ctx.fillRect(sx-w*0.5, sy-3+legL, w*0.44, 4);
+  ctx.fillRect(sx+w*0.06, sy-3+legR, w*0.44, 4);
+  /* торс */
+  ctx.fillStyle = u.hitFlash > 0 ? "#ffffff" : C.main;
+  roundRectCtx(ctx, sx-w/2, topY+10*scale, w, h*0.62, 5);
+  /* плечи: правый наплечник темнее, если рука-оружие пробита */
+  ctx.fillStyle = armHurt ? "#6e3b3b" : C.dark;
+  ctx.fillRect(sx-w*0.72, topY+10*scale, w*0.28, h*0.3);
+  ctx.fillRect(sx+w*0.44, topY+10*scale, w*0.28, h*0.3);
+  /* кабина-«визор» в аниме-стиле */
+  ctx.fillStyle = "#0d1420";
+  roundRectCtx(ctx, sx-w*0.3, topY+2*scale, w*0.6, 12*scale, 4);
+  ctx.fillStyle = u.team==="player" ? "#35f0ff" : "#ff5d5d";
+  ctx.fillRect(sx-w*0.22, topY+6*scale, w*0.44, 3);
+  /* ОРУЖИЕ: рука-пушка, разворачивается к цели, с отдачей и вспышкой */
+  const gunLen = [16,22,30][u.weapon] * scale;
+  const ang = anim.aimAng;
+  const shX = sx + w*0.5, shY = topY + 18*scale;
+  ctx.save();
+  ctx.translate(shX - Math.cos(ang)*rec, shY - Math.sin(ang)*rec);
+  ctx.rotate(ang);
+  ctx.fillStyle = armHurt ? "#7a4a4a" : "#39465c"; ctx.fillRect(0, -3*scale, gunLen, 6*scale);
+  ctx.fillStyle = C.accent; ctx.fillRect(gunLen-4*scale, -2*scale, 4*scale, 4*scale);
+  if (anim.recoil > 0.55) {                        // дульная вспышка в первые кадры залпа
+    ctx.fillStyle = "rgba(255,220,120,.9)";
+    ctx.beginPath(); ctx.arc(gunLen+4*scale, 0, 7*scale*anim.recoil, 0, Math.PI*2); ctx.fill();
+  }
+  ctx.restore();                         // конец save/restore оружия (поворот ствола)
+  /* ...здесь можно вставить свой спрайт: if (SPRITE_IMG.complete) { ctx.drawImage(SPRITE_IMG, sx-30, topY, 60, 70); } */
+  ctx.restore();                         // конец зеркалирования юнита
+  /* полоска ХП над юнитом */
+  const bw = 40;
+  ctx.fillStyle = "rgba(0,0,0,.55)"; ctx.fillRect(sx-bw/2, topY-10, bw, 5);
+  ctx.fillStyle = u.team==="player" ? "#3ad6c4" : "#ff5d5d";
+  ctx.fillRect(sx-bw/2, topY-10, bw*(u.hp/u.maxHp), 5);
+  /* индикатор активного юнита / имени при наведении */
+  if (isActive) {
+    ctx.strokeStyle = "#ffd23f"; ctx.lineWidth = 2;
+    ctx.beginPath(); ctx.ellipse(sx, sy+2, w*1.05, w*0.5, 0, 0, Math.PI*2); ctx.stroke();
+    ctx.lineWidth = 1;
+  }
+  if (isActive || isHovered) {
+    ctx.font = "10px monospace"; ctx.textAlign = "center";
+    ctx.fillStyle = "#cfe3f5"; ctx.fillText(u.name, sx, topY-14);
+  }
+}
+function roundRectCtx(ctx,x,y,w,h,r){ ctx.beginPath(); ctx.moveTo(x+r,y); ctx.arcTo(x+w,y,x+w,y+h,r); ctx.arcTo(x+w,y+h,x,y+h,r); ctx.arcTo(x,y+h,x,y,r); ctx.arcTo(x,y,x+w,y,r); ctx.closePath(); ctx.fill(); }
+function roundRectBt(x,y,w,h,r){ roundRectCtx(btCtx,x,y,w,h,r); }
+
+/* ============================================================
+   ПОЛЕ БОЯ: ПОШАГОВЫЙ БОЙ НА СЕТКЕ 16×16
+   (переменные btCanvas/btCtx/btTiles/btUnits... объявлены ВЫШЕ,
+    в блоке «СОСТОЯНИЕ ОБЕИХ ИЗОМЕТРИЧЕСКИХ СЦЕН»)
+   ============================================================ */
+
+/* --- тайлы карты: 0 = пол, 1 = стена (обломок), 2 = радиоактивная лужа (нельзя идти) --- */
+function genMap() {
+  btTiles = Array.from({ length: BT_MAP }, () => Array(BT_MAP).fill(0));
+  /* детерминированные декорации-стены, чтобы проход был всегда возможен */
+  const walls = [[2,3],[3,3],[2,4],[7,1],[8,1],[12,2],[12,3],[13,6],[14,6],[4,8],[5,8],[10,9],[10,10],[2,12],[3,12],[8,13],[9,13],[13,11],[13,12]];
+  walls.forEach(([x,y]) => btTiles[y][x] = 1);
+  const puddles = [[6,5],[11,4],[4,11],[12,13],[9,7]];
+  puddles.forEach(([x,y]) => btTiles[y][x] = 2);
+}
+
+/* --- юниты боя (btUnits/btPlayer объявлены ВЫШЕ) ---
+   speed определяет ЧИСЛО ДЕЙСТВИЙ за ход (быстрый лёгкий мех — 2 действия),
+   move — сколько клеток проходит за одно действие перемещения */
+function buildBattleUnits() {
+  const t = totalStats();
+  btUnits = [];
+  btPlayer = {
+    id:"player", name:"ВАШ МЕХ", team:"player", cls:loadout.torso, weapon:loadout.weapon,
+    gx:2, gy:2, hp:t.hp, maxHp:t.hp, power:t.power, armor:Math.round(t.weight*3),
+    move: Math.max(2, Math.min(6, Math.round(t.speed/4))),
+    fireRange: 5 + (2 - loadout.torso),             // лёгкая сборка стреляет дальше
+    actions: t.speed >= 20 ? 2 : 1,                 // скорость = больше действий за ход
+    partHp: makePartHp(t),                          // узлы цехи — повреждения влияют на бой
+    anim:{ phase:"idle", walkPath:null, walkT:0, aimAng:0, recoil:0, bob:Math.random()*6 },
+  };
+  btUnits.push(btPlayer);
+  /* три вражеских меха: лёгкий / средний / тяжёлый — цвета и размеры различаются */
+  const enemies = [
+    { id:"e_light",  name:"РАЗВЕДЧИК MK-I",  cls:0, gx:13, gy:4,  hp:120, dmg:10, armor:2, move:5, actions:2, fireRange:5 },
+    { id:"e_medium", name:"ШТУРМОВИК MK-II", cls:1, gx:12, gy:9,  hp:220, dmg:16, armor:6, move:3, actions:1, fireRange:5 },
+    { id:"e_heavy",  name:"СУДЬЯ MK-III",    cls:2, gx:8,  gy:13, hp:420, dmg:26, armor:14, move:2, actions:1, fireRange:6 },
+  ];
+  enemies.forEach(e => btUnits.push({ ...e, team:"enemy", maxHp:e.hp, weapon:1+e.cls,
+    partHp: makePartHp({hp:e.hp}),
+    anim:{ phase:"idle", walkPath:null, walkT:0, aimAng:0, recoil:0, bob:Math.random()*6 } }));
+}
+
+/* --- состояние хода (btPhase/btActingUnit/btReachCells/btFireCells/
+       btHover/btTurnNum объявлены ВЫШЕ, в блоке состояния сцен) --- */
+function computeReach(unit) {
+  computeReachInto(btReachCells, unit, btUnits, btTiles);
+  computeFireCells(btFireCells, unit);
+}
+
+function beginPlayerActions() {
+  btPhase = "player";
+  btActingUnit = btPlayer;
+  computeReach(btPlayer);
+  updateTurnBanner();
+  refreshBattleHud();
+}
+function endPlayerTurn() {
+  if (btPhase !== "player") return;
+  btPhase = "busy";
+  updateTurnBanner();
+  beginEnemyPhase();                     // сброс флагов _done и запуск фазы противника
+}
+
+/* Ход врагов: каждый по очереди делает движение к игроку и выстрел (если достреливает) */
+/* btRef объявлен ВЫШЕ, в блоке состояния сцен */
+function beginEnemyPhase() {
+  btUnits.filter(u => u.team==="enemy" && u.hp>0).forEach(u => u._done = false);
+  btPhase = "enemy"; btRef.p = "enemy";
+  updateTurnBanner();
+  setTimeout(enemyTurnStep, 350);
+}
+function enemyTurnStep() {
+  const foes = btUnits.filter(u => u.team==="enemy" && u.hp>0);
+  const next = foes.find(u => !u._done);
+  if (!next) { btTurnNum++; beginPlayerActions(); return; }
+  next._done = true;
+  const dist = Math.abs(next.gx-btPlayer.gx)+Math.abs(next.gy-btPlayer.gy);
+  const range = effFireRange(next);        // тяжёлый стреляет дальше; битая рука — короче
+  if (dist <= range) {
+    /* атака: разворот ствола + залп с трассером */
+    orderFire(btRef, next, btPlayer, () => afterEnemyAction(next));
+  } else {
+    moveToward(next, btPlayer, () => afterEnemyAction(next));
+  }
+}
+function afterEnemyAction(next) {
+  if (checkBattleOver()) return;
+  setTimeout(enemyTurnStep, 300);
+}
+function moveToward(unit, target, done) {
+  /* идем к последней свободной клетке рядом с целью */
+  const cells = [[1,0],[-1,0],[0,1],[0,-1],[1,1],[1,-1],[-1,1],[-1,-1]]
+    .map(([dx,dy])=>({gx:target.gx+dx, gy:target.gy+dy}))
+    .filter(c=>walkableIn(btUnits,c.gx,c.gy,unit,btTiles))
+    .sort((a,b)=> (Math.hypot(a.gx-unit.gx,a.gy-unit.gy)) - (Math.hypot(b.gx-unit.gx,b.gy-unit.gy)));
+  const dest = cells[0];
+  if (!dest) { done(); return; }
+  startMove(btUnits, btRef, unit, dest, done);
+}
+
+/* --- приказ игрока: клик по карте --- */
+function battleClick(px, py) {
+  if (btPhase !== "player" || !btActingUnit) return;
+  const { gx, gy } = screenToIso(px, py);
+  /* клик по врагу — огонь, если в радиусе выстрела */
+  const foe = btUnits.find(u => u.team==="enemy" && u.hp>0 && u.gx===gx && u.gy===gy);
+  if (foe) {
+    const dist = Math.abs(foe.gx-btActingUnit.gx)+Math.abs(foe.gy-btActingUnit.gy);
+    const range = effFireRange(btActingUnit); // лёгкая сборка стреляет дальше; битая рука — меньше
+    if (range > 0 && dist <= range) { orderFire(btRef, btActingUnit, foe, playerActionFinished); btlLog(`Огонь по ${foe.name}!`); }
+    else if (range === 0) btlLog("Правая рука-оружие уничтожена — стрелять нечем!", "dmg");
+    else btlLog(`Цель слишком далеко (${dist} кл., максимум ${range}). Сначала сблизьтесь.`, "dmg");
+    return;
+  }
+  /* клик по доступной клетке — шаг туда (анимация движения) */
+  if (btReachCells.has(gy*BT_MAP+gx)) {
+    startMove(btUnits, btRef, btActingUnit, {gx, gy}, playerActionFinished);
+  } else {
+    btlLog("Туда не пройти за один рывок — выберите подсвеченную клетку.");
+  }
+}
+/* Действие игрока завершено: либо остаётся фаза игрока (ещё действия), либо ход врагов. */
+function playerActionFinished() {
+  if (checkBattleOver()) return;
+  btActingUnit.actions--;
+  if (btActingUnit.actions > 0) {
+    btPhase = "player"; btRef.p = "player";// возвращаем управление: осталось действие (у быстрых сборок)
+    computeReach(btActingUnit);
+    updateTurnBanner();
+  } else {
+    beginEnemyPhase();                     // действия кончились — ход противника
+  }
+}
+
+/* --- движение с АНИМАЦИЕЙ ШАГОВ МЕХА: юнит идёт по клеткам пути,
+       покадрово интерполируется, походка кодыряет (bob/шаги ног).
+       Битые ноги (partHp.legs.pct<0.6) — шаг вдвое короче и медленнее. --- */
+function effMove(unit) {
+  if (!unit.partHp) return unit.move;
+  const l = unit.partHp.legs.pct;
+  if (l <= 0) return 0;                    // ноги пробиты — мех не идёт, только стоит и стреляет
+  if (l < 0.6) return Math.max(1, Math.floor(unit.move/2));
+  if (l < 0.35) return 1;
+  return unit.move;
+}
+function startMove(list, phaseRef, unit, dest, done) {
+  /* phaseRef — ссылка на объект состояния фазы ({p:"busy"}), чтобы полигон
+     и бой использовали одну логику, но разные «переменные хода» */
+  const path = findPathIn({gx:unit.gx,gy:unit.gy}, dest, unit, list, phaseRef.tiles);
+  if (!path || !path.length) { done && done(); return false; }
+  phaseRef.p = "busy";
+  unit.anim.phase = "walk";
+  unit.anim.walkPath = [{gx:unit.gx,gy:unit.gy}, ...path];
+  unit.anim.walkSeg = 0;
+  unit.anim.walkT = 0;
+  unit._moveDone = done;
+  /* скорость шага зависит от speed-стата и целости ног: быстрые ноги перебирают чаще */
+  const hurtLimp = unit.partHp && unit.partHp.legs.pct < 0.6;
+  unit.anim.stepDur = Math.max(90, 320 - (effMove(unit)*28)) * (hurtLimp ? 1.6 : 1);
+  return true;
+}
+
+/* --- стрельба с АНИМАЦИЕЙ ОРУЖИЯ: разворот ствола к цели, отдача, дульная вспышка, трассер.
+       Повреждённая правая рука (оружие): урон × pct, шанс промаха, ниже дальность. --- */
+function effFireRange(unit) {
+  let r = unit.fireRange || 4;
+  if (unit.partHp) {
+    const a = unit.partHp.rArm.pct;
+    if (a <= 0) return 0;                  // рука-оружие уничтожена — стрелять нечем
+    if (a < 0.6) r -= 2;                   // шаткий ствол — дистанция огня падает
+  }
+  return Math.max(1, r);
+}
+function orderFire(phaseRef, shooter, target, done) {
+  phaseRef.p = "busy";
+  shooter.anim.phase = "aim";
+  const a = isoToScreen(shooter.gx, shooter.gy), b = isoToScreen(target.gx, target.gy);
+  shooter.anim.aimTarget = { x:b.x, y:b.y - 26 };
+  shooter._fireDone = done;
+  shooter._fireTarget = target;
+  setTimeout(() => {                       // после короткой анимации прицеливания — залп
+    if (shooter.hp <= 0) {                 // стрелок мог быть уничтожен в ответ — приказ отменён
+      const cb = shooter._fireDone; shooter._fireDone = null;
+      if (cb) cb(); return;
+    }
+    shooter.anim.phase = "fire";
+    shooter.anim.recoil = 1;               // отдача гаснет в render-цикле
+    spawnTracerIn(phaseRef.fx, a.x+14, a.y-30, b.x, b.y-24, shooter.team==="player" ? "#7ef2e2" : "#ff8a5c");
+    applyShotDamage(shooter, target, phaseRef);
+  }, 420);
+}
+function applyShotDamage(shooter, target, phaseRef) {
+  const isPlayer = shooter.team === "player";
+  let raw = isPlayer ? shooter.power : shooter.dmg;
+  /* ПОВРЕЖДЕНИЕ ПРАВОЙ РУКИ (оружия): недобор урона и шанс пустого выстрела */
+  let missed = false;
+  if (shooter.partHp) {
+    const a = shooter.partHp.rArm.pct;
+    raw = Math.round(raw * (0.3 + 0.7*a));
+    if (a < 0.6 && Math.random() < (0.6-a)*0.5) missed = true;  // дрожащий ствол мажет
+  }
+  const variance = 0.8 + Math.random()*0.4;
+  let dmg = missed ? 0 : Math.max(1, Math.round(raw * variance - target.armor));
+  /* тяжёлый корпус игрока держит удар лучше: снижение по классу торса + щит-рука */
+  if (!isPlayer && target === btPlayer) {
+    dmg = Math.max(missed?0:1, dmg - loadout.torso*3);
+    if (target.partHp) dmg = Math.max(missed?0:1, Math.round(dmg * (1 - 0.25*target.partHp.lArm.pct))); // левая рука-щит гасит урон
+  }
+  if (!missed && Math.random() < 0.12) { dmg = Math.round(dmg*1.8); (phaseRef.log||btlLog)(`КРИТ по ${target.name}!`, "kill"); }
+  /* распределение урона по узлам мишени: попадание может выбить руку/ногу */
+  if (!missed && target.partHp) {
+    const roll = Math.random();
+    const part = roll < 0.30 ? "rArm" : roll < 0.50 ? "lArm" : roll < 0.75 ? "legs" : "torso";
+    target.partHp[part].cur = Math.max(0, target.partHp[part].cur - Math.ceil(dmg*0.6));
+    target.partHp[part].pct = target.partHp[part].cur / target.partHp[part].max;
+    if (target.partHp[part].pct <= 0) (phaseRef.log||btlLog)(`У ${target.name} ВЫВЕДЕН ИЗ СТРОЯ ${PART_NAMES[part]}!`, "warn");
+    else if (target.partHp[part].pct < 0.6) (phaseRef.log||btlLog)(`${target.name}: повреждён ${PART_NAMES[part]}`, "dmg");
+    if (target === trPlayer) refreshTrainNodes();
+    if (target === btPlayer) refreshBattleHud();
+  }
+  target.hp = Math.max(0, target.hp - dmg);
+  target.hitFlash = 1;                     // белая вспышка попадания (гаснет в рендере)
+  const lg = phaseRef.log || btlLog;
+  if (missed) lg(`${shooter.name} → ${target.name}: ПРОМАХ (бьёт повреждённая рука)`, "warn");
+  else lg(`${shooter.name} → ${target.name}: −${dmg} ХП`, "dmg");
+  if (target.hp === 0) {
+    target.deadAt = performance.now();
+    const p = isoToScreen(target.gx, target.gy);
+    spawnExplosionIn(phaseRef.fx, p.x, p.y + BT_TILE_H/2);
+    lg(`✖ ${target.name} УНИЧТОЖЕН`, "kill");
+  }
+}
+const PART_NAMES = { rArm:"ПРАВАЯ РУКА (оружие)", lArm:"ЛЕВАЯ РУКА (щит)", legs:"НОГИ (шасси)", torso:"ТОРС (ядро)" };
+/* состояние узлов меха: руки и ноги портятся от попаданий и влияют на ход/огонь */
+function makePartHp(t) {
+  const hpMax = Math.max(40, Math.round((t.hp || 100)/3));
+  return {
+    rArm:{ cur:hpMax, max:hpMax, pct:1 },
+    lArm:{ cur:hpMax, max:hpMax, pct:1 },
+    legs:{ cur:hpMax, max:hpMax, pct:1 },
+    torso:{ cur:hpMax, max:hpMax, pct:1 },
+  };
+}
+
+function checkBattleOver() {
+  const foesAlive = btUnits.some(u => u.team==="enemy" && u.hp>0);
+  if (!foesAlive) { btPhase="over"; showBanner("ПОБЕДА! СЕКТОР ЗАЧИЩЕН", "#ffd23f"); return true; }
+  if (btPlayer.hp <= 0)  { btPhase="over"; showBanner("МЕХ РАЗРУШЕН… ЭВАКУАЦИЯ", "#ff5d5d"); return true; }
+  return false;
+}
+function showBanner(text, color) {
+  const b = document.getElementById("turnBanner");
+  b.textContent = text; b.classList.remove("enemy-phase");
+  b.style.color = color; b.style.textShadow = `0 0 14px ${color}`;
+}
+function updateTurnBanner() {
+  const b = document.getElementById("turnBanner");
+  b.style.color = ""; b.style.textShadow = "";
+  if (btPhase === "player") { b.textContent = `ХОД ${btTurnNum} · ОГОНЬ ИЛИ МАНЁВР (осталось действий: ${btActingUnit ? btActingUnit.actions : 0})`; b.classList.remove("enemy-phase"); }
+  else if (btPhase === "busy") { b.textContent = "ВЫПОЛНЯЕТСЯ ПРИКАЗ…"; }
+  else if (btPhase === "enemy") { b.textContent = `ХОД ПРОТИВНИКА №${btTurnNum}`; b.classList.add("enemy-phase"); }
+}
+
+/* --- HUD поля боя --- */
+function refreshBattleHud() {
+  const bar = document.getElementById("playerHpBar");
+  bar.querySelector("i").style.width = (btPlayer.hp/btPlayer.maxHp*100)+"%";
+  bar.classList.toggle("low", btPlayer.hp/btPlayer.maxHp < .35);
+  document.getElementById("playerHpTxt").textContent = `${btPlayer.hp} / ${btPlayer.maxHp}`;
+  document.getElementById("playerPwSp").textContent = `${btPlayer.power} / ${btPlayer.move} кл·ход`;
+  document.getElementById("playerArmor").textContent = btPlayer.armor;
+}
+function btlLog(msg, cls) {
+  const box = document.getElementById("battleLog");
+  box.innerHTML += `<div class="${cls||""}">[ТАКТ ${btTurnNum}] ${msg}</div>`;
+  box.scrollTop = box.scrollHeight;
+}
+
+/* --- мышь: наведение (клетка/юнит) и клики-приказы --- */
+function canvasPoint(ev) {
+  const r = btCanvas.getBoundingClientRect();
+  return { x:(ev.clientX-r.left)*(btCanvas.width/r.width), y:(ev.clientY-r.top)*(btCanvas.height/r.height) };
+}
+function attachBattleEvents() {
+  btCanvas.addEventListener("mousemove", ev => {
+    const p = canvasPoint(ev);
+    const c = screenToIso(p.x, p.y);
+    btHover = (c.gx>=0&&c.gy>=0&&c.gx<BT_MAP&&c.gy<BT_MAP) ? c : null;
+    btHoverU = btUnits.find(u => u.hp>0 && u.gx===c.gx && u.gy===c.gy) || null;
+    const info = document.getElementById("unitInfo");
+    if (btHoverU) {
+      info.innerHTML = `<b>${btHoverU.name}</b><br>ХП ${btHoverU.hp}/${btHoverU.maxHp} · Броня ${btHoverU.armor}<br>` +
+        (btHoverU.team==="enemy" ? "<span style='color:#ff8a70'>ЦЕЛЬ: клик — открыть огонь</span>" : "Свой мех");
+    } else if (btHover) {
+      const t = btTiles[btHover.gy][btHover.gx];
+      info.innerHTML = `Клетка [${btHover.gx}, ${btHover.gy}] · ` +
+        (t===1 ? "<b>Завал</b> — непроходим" : t===2 ? "<b>Радиолужа</b> — объезд" : btReachCells.has(btHover.gy*BT_MAP+btHover.gx) ? "Доступна для шага" : "Вне зоны шага");
+    }
+  });
+  btCanvas.addEventListener("click", ev => { const p = canvasPoint(ev); battleClick(p.x, p.y); });
+}
+
+/* --- кнопки и горячие клавиши --- */
+document.getElementById("btnEndTurn").onclick = () => { if (btPhase==="player") { btActingUnit.actions = 0; endPlayerTurn(); } };
+document.getElementById("btnBtReset").onclick = () => startBattle();
+document.getElementById("btnBtHangar").onclick = () => goScreen("screenHangar");
+window.addEventListener("keydown", ev => {
+  const onBattle   = document.getElementById("screenBattle").classList.contains("visible");
+  const onTraining = document.getElementById("screenTraining").classList.contains("visible");
+  /* Горячие клавиши полигона «Эхо»: 1 — ХОД, 2 — АТАКА (два действия за такт) */
+  if (onTraining && trPlayer) {
+    if (ev.key === "1" && trAct === "move") { trLog("Режим ХОДА активен: кликните по голубой сетке."); return; }
+    if (ev.key === "2") { btnActFire.click(); return; }
+  }
+  if (!onBattle) return;
+  if (ev.key.toLowerCase()==="x" || ev.code==="Space") { ev.preventDefault(); if (btPhase==="player"){ btActingUnit.actions=0; endPlayerTurn(); } }
+});
+
+/* --- запуск/перезапуск боя (вызывается из ангара, полигона и с карты города) --- */
+/* btBattleToken объявлен ВЫШЕ, в блоке состояния сцен */
+function startBattle(missionName) {
+  btBattleToken++;                       // старый бой считается недействительным
+  genMap();
+  buildBattleUnits();
+  btTurnNum = 1; fxBattle.length = 0;   // очистка эффектов боя
+  document.getElementById("battleLog").innerHTML = "";
+  document.getElementById("turnBanner").style.cssText = "";
+  btlLog(missionName ? `Высадка: ${missionName}. Противник обнаружен.` : "Учебное развертывание. Полигон «Эхо».");
+  beginPlayerActions();
+  refreshBattleHud();
+  /* Перезапуск боя (кнопка «Новый бой», выступление с карты города):
+     показываем заставку с кнопкой «НАЧАТЬ БОЙ», как при входе на экран */
+  const banner = document.getElementById("btLoading");
+  if (banner && document.getElementById("screenBattle").classList.contains("visible")) {
+    banner.classList.add("on");
+  }
+}
+
+/* ============================================================
+   ФИНАЛЬНАЯ ИНИЦИАЛИЗАЦИЯ — выполняется ПОСЛЕ того, как весь
+   HTML страницы (включая полотна #trainingCanvas и #battleCanvas)
+   разобран браузером. Раньше этот код жил в начале скрипта и
+   getElementById возвращал null — поэтому на поле боя и полигоне
+   «интерфейс есть, а клеток и мехов нет». Теперь:
+   1) attachCanvases() привязывает реальные полотна и контексты;
+   2) startBattle()/setupTraining() заполняют юнитами обе сцены;
+   3) запускаются циклы отрисовки requestAnimationFrame.
+   ============================================================ */
+/* ============================================================
+   КНОПКИ «НАЧАТЬ БОЙ» на заставках (поле боя и полигон «Эхо»).
+   Сцена под плашкой уже развёрнута (старт скрипта + bootIsoScene),
+   поэтому кнопка только убирает заставку. Если бой был закончен —
+   сначала полная перезагрузка сектора с новой сборкой из ангара.
+   ============================================================ */
+document.getElementById("btnBtStart").onclick = () => {
+  if (btPhase === "over") startBattle();           // прошлый бой окончен — новый сектор
+  hideSceneOverlay("screenBattle");
+};
+document.getElementById("btnTrStart").onclick = () => {
+  if (trAct === "over") setupTraining();           // полигон остановлен — восстановить
+  hideSceneOverlay("screenTraining");
+};
+
+/* --- привязка полотен: размеры задаются ИЗ JS (CANVAS_W/H), чтобы
+       ширина canvas гарантированно превышала ромб карты 16×16 (832 px)
+       и поле боя не «съезжало» вправо за край полотна --- */
+function attachCanvases() {
+  trCanvas = document.getElementById("trainingCanvas");
+  trCanvas.width = CANVAS_W; trCanvas.height = CANVAS_H;
+  trCtx    = trCanvas.getContext("2d");
+  btCanvas = document.getElementById("battleCanvas");
+  btCanvas.width = CANVAS_W; btCanvas.height = CANVAS_H;
+  btCtx    = btCanvas.getContext("2d");
+  attachTrainingEvents();                // слушатели мыши полигона
+  attachBattleEvents();                  // слушатели мыши поля боя
+}
+attachCanvases();
+startBattle();                           // бой развёрнут сразу (поле боя видно из навигации)
+setupTraining();                         // полигон «Эхо» готов к тактам ХОД -> АТАКА
+requestAnimationFrame(renderBattle);     // цикл отрисовки поля боя
+requestAnimationFrame(renderTraining);   // цикл отрисовки полигона
+
+/* Первичный пересчёт и отрисовка обоих экранов */
+refreshAll();
+</script>
+</body>
+</html>

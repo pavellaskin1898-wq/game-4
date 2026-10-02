@@ -1309,25 +1309,47 @@ function roundRect(ctx, x, y, w, h, r) {
   ctx.closePath();
 }
 
-/* Инициализация селектов ангара */
+/* Инициализация селектов ангара. При СМЕНЕ ЛЮБОЙ детали или оружия
+   вызывается refreshAll() -> applyLoadoutToUnits(): тот же мех с той же
+   бронёй и стволом появляется и на полигоне «Эхо», и на поле боя. */
 fillSelect("slotRightArm", PARTS.rightArm, "rightArm");
 fillSelect("slotLeftArm",  PARTS.leftArm,  "leftArm");
 fillSelect("slotTorso",    PARTS.torso,    "torso");
 fillSelect("slotLegs",     PARTS.legs,     "legs");
 fillSelect("slotWeapon",   WEAPONS,        "weapon");
 
-/* Отрисовка вашего меха на полигоне (общая функция обновления обоих экранов) */
-function refreshAll() {
-  refresh();                    // панель статов + мех в ангаре
+/* --- функции боевого движка (изометрия/ходьба/огонь) объявляются ниже
+       в скрипте как function — они «всплывают» и уже доступны здесь --- */
+applyLoadoutToUnits();
+
+/* Единая точка синхронизации СБОРКИ: любая смена детали/оружия в
+   ангаре мгновенно обновляет мех и на ПОЛИГОНЕ «ЭХО», и НА ПОЛЕ БОЯ.
+   Если бой/полигон ещё не запущены (btPlayer/trPlayer === null) —
+   сборка применится автоматически при следующем startBattle()/setupTraining(),
+   которые читают totalStats() из текущего loadout. */
+function applyLoadoutToUnits() {
+  const t = totalStats();
+  const combat = { cls:loadout.torso, weapon:loadout.weapon,
+    hp:t.hp, maxHp:t.hp, power:t.power, armor:Math.round(t.weight*3),
+    move: Math.max(2, Math.min(6, Math.round(t.speed/4))),
+    fireRange: 5 + (2 - loadout.torso),
+    actions: t.speed >= 20 ? 2 : 1 };
   if (typeof trPlayer !== "undefined" && trPlayer) {
-    /* сборка изменилась -> обновляем боевые параметры меха на полигоне */
-    const t = totalStats();
-    Object.assign(trPlayer, { cls:loadout.torso, weapon:loadout.weapon,
-      hp:t.hp, maxHp:t.hp, power:t.power, armor:Math.round(t.weight*3),
-      move: Math.max(2, Math.min(6, Math.round(t.speed/4))),
-      fireRange: 5 + (2 - loadout.torso), partHp: makePartHp(t) });
+    Object.assign(trPlayer, combat, { partHp: makePartHp(t) });
     computeTrainZones(); refreshTrainNodes();
   }
+  if (typeof btPlayer !== "undefined" && btPlayer) {
+    Object.assign(btPlayer, combat, { partHp: makePartHp(t) });
+    /* если сейчас ход игрока — пересветить сетки от новой позиции/статов */
+    if (btPhase === "player") computeReach(btPlayer);
+    refreshBattleHud();
+  }
+}
+
+/* Отрисовка вашего меха на полигоне и в бою (общая функция обновления) */
+function refreshAll() {
+  refresh();                    // панель статов + мех в ангаре
+  applyLoadoutToUnits();        // та же сборка живёт на полигоне и на поле боя
 }
 
 /* Цикл «дыхания» меха в ангаре: redraw только когда экран ангара виден — экономим CPU */
@@ -1360,9 +1382,10 @@ const trCtx = trCanvas.getContext("2d");
 let trUnits = [], trPlayer = null;
 let trReachCells = new Set(), trFireCells = new Set();
 let trHoverCell = null, trHoverU = null;
-let trAct = "move";                          // move | fire | busy | over
+let trAct = "idle";                          // idle | move | fire | busy | over
 let trTurn = 1;
-const trRef = { p:"player", tiles:null, log:(m,c)=>trLog(m,c) };
+let trMoved = false;                         // был ли ХОД в текущем такте (порядок: ход -> атака)
+const trRef = { p:"player", tiles:null, fx:fxTrain, log:(m,c)=>trLog(m,c) };
 
 function trLog(msg, cls) {
   const box = document.getElementById("trLog");
@@ -1393,9 +1416,9 @@ function setupTraining() {
   dummies.forEach(d => trUnits.push({ ...d, team:"enemy", maxHp:d.hp, weapon:1+d.cls,
     partHp: makePartHp({hp:d.hp}),
     anim:{ phase:"idle", walkPath:null, walkT:0, aimAng:0, recoil:0, bob:Math.random()*6 } }));
-  trTurn = 1; trAct = "move"; fx = [];
+  trTurn = 1; trAct = "idle"; trMoved = false; fxTrain.length = 0;   // очистка эффектов полигона
   document.getElementById("trLog").innerHTML = "";
-  trLog("Полигон «Эхо» готов. Порядок действий за такт: ХОД → АТАКА.");
+  trLog("Полигон «Эхо» готов. Порядок действий за такт: кнопка ХОД → кнопка АТАКА.");
   computeTrainZones();
   refreshTrainNodes();
   updateTrainUi();
@@ -1403,6 +1426,7 @@ function setupTraining() {
 
 /* --- зоны: голубая сетка хода (ноги!) и оранжевая сетка огня (рука-оружие!) --- */
 function computeTrainZones() {
+  if (!trPlayer) return;
   const savedMove = trPlayer.move;           // ноги повреждены -> зона хода сжимается
   trPlayer.move = effMove(trPlayer);
   computeReachInto(trReachCells, trPlayer, trUnits, null);
@@ -1415,6 +1439,7 @@ function computeTrainZones() {
 
 /* --- панель узлов: полоски состояния + подписи влияния на ход и огонь --- */
 function refreshTrainNodes() {
+  if (!trPlayer) return;
   const map = [["barRArm","noteRArm","rArm"],["barLArm","noteLArm","lArm"],["barTorso","noteTorso","torso"],["barLegs","noteLegs","legs"]];
   map.forEach(([barId, noteId, key]) => {
     const p = trPlayer.partHp[key];
@@ -1566,6 +1591,8 @@ function renderTraining() {
   const g = trCtx.createLinearGradient(0,0,0,trCanvas.height);
   g.addColorStop(0,"#0b1322"); g.addColorStop(.5,"#0d1726"); g.addColorStop(1,"#0a1018");
   trCtx.fillStyle = g; trCtx.fillRect(0,0,trCanvas.width,trCanvas.height);
+  /* оранжевая сетка огня показана ВСЕГДА (и в фазе хода, и в фазе атаки):
+     игрок заранее видит «до куда стреляет ствол» при выборе позиции */
   drawIsometricTiles(trCtx, null, trAct==="move" ? trReachCells : null, trFireCells, trHoverCell);
   stepUnitsAnim(trUnits);                  // продвижение анимаций ходьбы/залпа
   const sorted = [...trUnits].filter(u=>u.hp>0 || u.deadAt).sort((a,b)=>{
@@ -1582,18 +1609,51 @@ function renderTraining() {
     const p = unitPixelPos(u);
     drawMechIso(trCtx, u, p.x, p.y + BT_TILE_H/2, u===trPlayer && trAct!=="over", u===trHoverU);
   });
-  updateAndDrawFx(trCtx);
+  updateAndDrawFx(trCtx, fxTrain);
   requestAnimationFrame(renderTraining);
 }
 requestAnimationFrame(renderTraining);
-setupTraining();                           // полигон живёт своей жизнью независимо от боя
+/* ВАЖНО: setupTraining() вызывается ОДИН РАЗ внизу скрипта — после того,
+   как боевые переменные (btCanvas, btTiles) уже объявлены. Иначе на
+   полигоне возникала ReferenceError и весь код боя «не жил». */
 
-/* Мини-лог полигона */
-function log(msg, cls) {
-  const box = document.getElementById("logBox");
-  box.innerHTML += `<div class="${cls || ""}">[БОЕВАЯ] ${msg}</div>`;
-  box.scrollTop = box.scrollHeight;
+/* ============================================================
+   РЕНДЕР ПОЛЯ БОЯ (восстановлен после рефакторинга): тот же
+   изометрический движок, но с тайлами (завалы/радиолужи) и
+   подсветкой зон активного юнита.
+   ============================================================ */
+function renderBattle() {
+  if (!document.getElementById("screenBattle").classList.contains("visible")) { requestAnimationFrame(renderBattle); return; }
+  btCtx.clearRect(0, 0, btCanvas.width, btCanvas.height);
+  const g = btCtx.createLinearGradient(0,0,0,btCanvas.height);
+  g.addColorStop(0,"#0a1120"); g.addColorStop(.55,"#0c1524"); g.addColorStop(1,"#090f16");
+  btCtx.fillStyle = g; btCtx.fillRect(0,0,btCanvas.width,btCanvas.height);
+  /* сетки: голубая — шаг, оранжевая — дальность ствола (видна всегда) */
+  drawIsometricTiles(btCtx, btTiles,
+    btPhase === "player" ? btReachCells : null,
+    btPhase === "player" ? btFireCells : null,
+    btHover);
+  stepUnitsAnim(btUnits);                  // анимация шагов и залпов
+  /* сортировка «сзади вперёд» — правильная изометрическая перекрытость */
+  const sorted = [...btUnits].filter(u=>u.hp>0 || u.deadAt).sort((a,b)=>{
+    const pa=isoToScreen(a.gx,a.gy), pb=isoToScreen(b.gx,b.gy);
+    return (pa.y - pb.y) || (pa.x - pb.x);
+  });
+  sorted.forEach(u => {
+    if (u.hp <= 0) {                       // остов уничтоженного меха
+      const p = isoToScreen(u.gx,u.gy);
+      btCtx.globalAlpha = 0.25; btCtx.fillStyle = "#555";
+      btCtx.fillRect(p.x-14, p.y-24, 28, 20); btCtx.globalAlpha = 1;
+      return;
+    }
+    const p = unitPixelPos(u);
+    drawMechIso(btCtx, u, p.x, p.y + BT_TILE_H/2,
+      u===btPlayer && btPhase==="player", u===btHoverU);
+  });
+  updateAndDrawFx(btCtx, fxBattle);
+  requestAnimationFrame(renderBattle);
 }
+requestAnimationFrame(renderBattle);
 
 /* ============================================================
    КАРТА ГОРОДА: задания
@@ -1630,6 +1690,13 @@ function deployMech() {
   startBattle(misTitle.textContent.replace("ЗАДАЧА: ", ""));
 }
 
+/* --- эффекты (трассеры, взрывы): ДВА РАЗДЕЛЬНЫХ ПУЛА — по одному
+       на каждое полотно (бой и полигон), чтобы анимации залпов не
+       «перетекали» с одного экрана на другой и не сбрасывались при
+       рестарте соседнего режима. Объявлены ЗДЕСЬ, до кода полигона
+       и боя, которые на них ссылаются. --- */
+const fxTrain = [], fxBattle = [];
+
 /* ============================================================
    ОБЩАЯ ИЗОМЕТРИЧЕСКАЯ СЕТКА 16×16 (используют её ПОЛЕ БОЯ
    и ТРЕНИРОВОЧНЫЙ ПОЛИГОН «ЭХО») — вид сверху-сбоку в стиле
@@ -1638,13 +1705,17 @@ function deployMech() {
    СПРАЙТЫ: мехи отрисованы программно на Canvas.
    Если вы нарисовали своих мехов на https://spritepaint.com/ —
    загрузите PNG, укажите путь в SPRITE_IMG ниже и раскомментируйте
-   img.drawImage(...) в функции drawBattleMech(). Пока image не
+   img.drawImage(...) в функции drawMechIso(). Пока image не
    загружен — рисуется процедурная графика.
    Пример: const SPRITE_IMG = new Image(); SPRITE_IMG.src = "mech.png";
    ============================================================ */
 const BT_TILE_W = 52, BT_TILE_H = 26;      // размеры ромба клетки в изометрии
 const BT_MAP = 16;                          // карта 16 x 16 клеток
-const BATTLE_ORIGIN_X = 448, BATTLE_ORIGIN_Y = 90; // вершина ромба карты на полотне
+/* Вершина ромба карты на полотне. РАСЧЁТ АВТОМАТИЧЕСКИЙ: полотно 896px
+   шириной, диагональ карты = 16*52 = 832px -> отступ (896-832)/2 + 52/2 = 58.
+   По высоте: сверху 70px, снизу остаётся ~300px под силуэты мехов. */
+const BATTLE_ORIGIN_X = Math.round((document.getElementById("battleCanvas").width - BT_MAP * BT_TILE_W) / 2 + BT_TILE_W / 2);
+const BATTLE_ORIGIN_Y = 70;
 
 /* --- преобразование координат: клетка -> экран (изометрия), экран -> клетка --- */
 function isoToScreen(gx, gy) {
@@ -1776,25 +1847,25 @@ function drawIsometricTiles(ctx, tiles, reachSet, fireSet, hoverCell, opts) {
   }
 }
 
-/* --- эффекты (трассеры, взрывы): общий пул для обоих полотен --- */
-let fx = [];
-function spawnTracerAt(x1,y1,x2,y2,color) {
-  fx.push({ type:"tracer", x1, y1, x2, y2, t0:performance.now(), dur:260, color });
-  fx.push({ type:"muzzle", x:x1+14, y:y1, t0:performance.now(), dur:140 });
+/* --- функции эффектов: работают с переданным пулом (fxTrain / fxBattle) --- */
+function spawnTracerIn(pool, x1,y1,x2,y2,color) {
+  pool.push({ type:"tracer", x1, y1, x2, y2, t0:performance.now(), dur:260, color });
+  pool.push({ type:"muzzle", x:x1+14, y:y1, t0:performance.now(), dur:140 });
 }
-function spawnExplosionAt(x, y) {
+function spawnExplosionIn(pool, x, y) {
   for (let i=0;i<16;i++) {
     const ang = Math.random()*Math.PI*2, sp = 0.6+Math.random()*2.4;
-    fx.push({ type:"spark", x, y:y-26, vx:Math.cos(ang)*sp, vy:Math.sin(ang)*sp-1,
-              t0:performance.now(), dur:600+Math.random()*400,
-              color: ["#ffd23f","#ff8a5c","#ff4d9d"][i%3] });
+    pool.push({ type:"spark", x, y:y-26, vx:Math.cos(ang)*sp, vy:Math.sin(ang)*sp-1,
+                t0:performance.now(), dur:600+Math.random()*400,
+                color: ["#ffd23f","#ff8a5c","#ff4d9d"][i%3] });
   }
-  fx.push({ type:"ring", x, y:y-20, t0:performance.now(), dur:520 });
+  pool.push({ type:"ring", x, y:y-20, t0:performance.now(), dur:520 });
 }
-function updateAndDrawFx(ctx) {
+function updateAndDrawFx(ctx, pool) {
   const now = performance.now();
-  fx = fx.filter(f => now - f.t0 < f.dur);
-  fx.forEach(f => {
+  /* удаляем истёкшие эффекты из пула (splice — пул постоянный) */
+  for (let i = pool.length - 1; i >= 0; i--) if (now - pool[i].t0 >= pool[i].dur) pool.splice(i, 1);
+  pool.forEach(f => {
     const k = (now - f.t0) / f.dur;
     if (f.type==="tracer") {
       ctx.strokeStyle = f.color; ctx.lineWidth = 2.5; ctx.globalAlpha = 1-k;
@@ -2032,7 +2103,7 @@ function endPlayerTurn() {
 }
 
 /* Ход врагов: каждый по очереди делает движение к игроку и выстрел (если достреливает) */
-const btRef = { p:"player", tiles:null, log:(m,c)=>btlLog(m,c) }; // «переменная хода» для общих функций
+const btRef = { p:"player", tiles:null, fx:fxBattle, log:(m,c)=>btlLog(m,c) }; // «переменная хода» для общих функций
 function beginEnemyPhase() {
   btUnits.filter(u => u.team==="enemy" && u.hp>0).forEach(u => u._done = false);
   btPhase = "enemy"; btRef.p = "enemy";
@@ -2155,7 +2226,7 @@ function orderFire(phaseRef, shooter, target, done) {
     }
     shooter.anim.phase = "fire";
     shooter.anim.recoil = 1;               // отдача гаснет в render-цикле
-    spawnTracerAt(a.x+14, a.y-30, b.x, b.y-24, shooter.team==="player" ? "#7ef2e2" : "#ff8a5c");
+    spawnTracerIn(phaseRef.fx, a.x+14, a.y-30, b.x, b.y-24, shooter.team==="player" ? "#7ef2e2" : "#ff8a5c");
     applyShotDamage(shooter, target, phaseRef);
   }, 420);
 }
@@ -2196,7 +2267,7 @@ function applyShotDamage(shooter, target, phaseRef) {
   if (target.hp === 0) {
     target.deadAt = performance.now();
     const p = isoToScreen(target.gx, target.gy);
-    spawnExplosionAt(p.x, p.y + BT_TILE_H/2);
+    spawnExplosionIn(phaseRef.fx, p.x, p.y + BT_TILE_H/2);
     lg(`✖ ${target.name} УНИЧТОЖЕН`, "kill");
   }
 }
@@ -2283,14 +2354,15 @@ function startBattle(missionName) {
   btBattleToken++;                       // старый бой считается недействительным
   genMap();
   buildBattleUnits();
-  btTurnNum = 1; fx = [];
+  btTurnNum = 1; fxBattle.length = 0;   // очистка эффектов боя
   document.getElementById("battleLog").innerHTML = "";
   document.getElementById("turnBanner").style.cssText = "";
   btlLog(missionName ? `Высадка: ${missionName}. Противник обнаружен.` : "Учебное развертывание. Полигон «Эхо».");
   beginPlayerActions();
   refreshBattleHud();
 }
-startBattle();
+startBattle();      // бой развёрнут сразу (поле боя видно из навигации)
+setupTraining();    // полигон «Эхо» — после объявления всех боевых переменных
 
 /* Первичный пересчёт и отрисовка обоих экранов */
 refreshAll();

@@ -400,6 +400,103 @@ p.screen-sub { color: #7d93ad; font-size: .85rem; margin-bottom: 20px; }
 }
 .close-x:hover { color: #fff; border-color: #fff; }
 
+/* ------------------------------------------------------------
+   ПИЛОТЫ В КОМНАТЕ: сидят за столом, анимации живых движений
+   (дыхание корпуса, повороты головы, взгляд-сканирование,
+   моргание, покачивание руки с планшетом, пар от кружки)
+   ------------------------------------------------------------ */
+.pilot { position:absolute; bottom:30%; width:120px; height:210px; z-index:6; pointer-events:none; }
+.pilot.boy  { left:62%; }
+.pilot.girl { left:75%; }
+/* торс-комбинезон с дыханием */
+.p-torso {
+  position:absolute; bottom:0; left:50%; transform:translateX(-50%);
+  width:84px; height:120px; border-radius:40px 40px 10px 10px;
+  animation: pBreathe 3.4s ease-in-out infinite;
+}
+@keyframes pBreathe { 0%,100% { transform:translateX(-50%) scaleY(1); } 50% { transform:translateX(-50%) scaleY(1.03) translateY(-2px); } }
+.pilot.boy .p-torso  { background:linear-gradient(160deg,#2e6fd8,#173a7a); box-shadow:inset -8px -6px 0 rgba(0,0,0,.25); }
+.pilot.girl .p-torso { background:linear-gradient(160deg,#f472b6,#9d1450); box-shadow:inset -8px -6px 0 rgba(0,0,0,.25); }
+.p-stripe { position:absolute; top:18px; left:50%; transform:translateX(-50%); width:12px; height:70px; background:rgba(255,255,255,.35); border-radius:4px; }
+/* голова: медленные повороты туда-сюда */
+.p-head {
+  position:absolute; top:0; left:50%; margin-left:-33px;
+  width:66px; height:72px; border-radius:46% 46% 50% 50%;
+  background:#ffdcb8; overflow:hidden;
+  animation: pLook 6.5s ease-in-out infinite;
+  transform-origin:50% 90%;
+}
+@keyframes pLook { 0%,42% { transform:rotate(0);} 55%,78% { transform:rotate(-7deg);} 90%,100% { transform:rotate(3deg);} }
+.p-hair-b { position:absolute; inset:-2px -2px auto -2px; height:44px; background:#2b3a55; border-radius:50% 50% 22% 22%; }
+.p-hair-b::after { content:""; position:absolute; left:14%; top:78%; width:16px; height:16px; background:#2b3a55; clip-path:polygon(0 0,100% 0,50% 100%); box-shadow:22px 2px 0 #2b3a55, 40px -2px 0 #2b3a55; }
+.p-hair-g { position:absolute; inset:-2px -2px auto -2px; height:40px; background:#7a3b52; border-radius:50% 50% 10% 10%; }
+.p-hair-g::before, .p-hair-g::after { content:""; position:absolute; top:60%; width:14px; height:64px; background:#7a3b52; border-radius:0 0 8px 8px; }
+.p-hair-g::before { left:0; } .p-hair-g::after { right:0; }
+/* глаза: зрачки бегают (взгляд по документам) + моргание */
+.p-eye { position:absolute; top:40%; width:11px; height:14px; background:#fff; border-radius:50%; overflow:hidden; }
+.p-eye.l { left:20%; } .p-eye.r { right:20%; }
+.p-pupil { position:absolute; left:2px; top:3px; width:7px; height:8px; background:#1c2438; border-radius:50%; animation: pGlance 5s ease-in-out infinite; }
+@keyframes pGlance { 0%,100% { transform:translateX(0);} 30% { transform:translateX(2px);} 60% { transform:translateX(-2px) translateY(1px);} }
+.p-lid { position:absolute; inset:0; background:#ffdcb8; transform:scaleY(0); transform-origin:top; animation: pBlink 4.2s infinite; }
+@keyframes pBlink { 0%,94%,100% { transform:scaleY(0);} 96% { transform:scaleY(1);} 98% { transform:scaleY(0);} }
+.p-blush { position:absolute; bottom:24%; width:11px; height:5px; border-radius:50%; background:rgba(255,120,140,.5); }
+.p-blush.l { left:12%; } .p-blush.r { right:12%; }
+/* рука с планшетом: покачивается в ладони */
+.p-arm {
+  position:absolute; bottom:34px; left:6px; width:46px; height:12px;
+  border-radius:6px; transform-origin:100% 50%;
+  animation: pArmSway 3.1s ease-in-out infinite;
+}
+.pilot.boy .p-arm { background:#2e6fd8; } .pilot.girl .p-arm { background:#f472b6; }
+.p-arm::after { content:""; position:absolute; left:-16px; top:-3px; width:26px; height:18px; background:#e8eef6; border:2px solid #9aa7b8; border-radius:2px; transform:rotate(-14deg); }
+@keyframes pArmSway { 0%,100% { transform:rotate(-4deg);} 50% { transform:rotate(6deg);} }
+/* пар над кружкой — лёгкая жизнь на столе */
+.steam { position:absolute; right:12%; bottom:34%; width:8px; height:34px; z-index:5; pointer-events:none; }
+.steam i { position:absolute; bottom:0; left:0; width:6px; height:6px; border-radius:50%; background:rgba(255,255,255,.35); animation: steamUp 3s infinite; }
+.steam i:nth-child(2) { animation-delay:1s; left:4px; } .steam i:nth-child(3) { animation-delay:2s; left:-2px; }
+@keyframes steamUp { from { transform:translateY(0) scale(.6); opacity:.8; } to { transform:translateY(-34px) scale(1.6); opacity:0; } }
+@media (max-width:760px){ .pilot{ transform:scale(.7); transform-origin:bottom center; } }
+
+/* ============================================================
+   ПОЛИГОН «ЭХО» (ТРЕНИРОВОЧНЫЙ АНГАР): изометрическая сетка
+   16×16 — та же, что на поле боя, но мехи НЕ ХОДЯТ (местность
+   ровная, без завалов). Подсветки: голубая — зона хода,
+   оранжевая — зона огня оружия («до куда стреляет»).
+   ============================================================ */
+#trainingCanvas {
+  background:#0a1018; border:1px solid #2a3b52; border-radius:8px;
+  cursor:crosshair; max-width:100%; height:auto; touch-action:manipulation;
+  box-shadow:0 0 30px rgba(0,0,0,.6) inset;
+}
+.tr-wrap { display:flex; gap:14px; flex-wrap:wrap; align-items:flex-start; }
+.tr-side { flex:1 1 250px; min-width:240px; display:flex; flex-direction:column; gap:12px; }
+.act-buttons { display:flex; gap:10px; flex-wrap:wrap; }
+.act-btn {
+  flex:1 1 120px; padding:14px 10px; font-weight:800; letter-spacing:2px;
+  text-transform:uppercase; cursor:pointer; border-radius:6px; font-size:.85rem;
+  background:rgba(8,12,20,.85); border:2px solid #2a3b52; color:#8fa3bd;
+  transition:.15s;
+}
+.act-btn small { display:block; font-weight:400; letter-spacing:1px; font-size:.62rem; margin-top:3px; color:#6d84a0; }
+.act-btn.active-move { border-color:var(--neon-cyan); color:var(--neon-cyan); box-shadow:0 0 16px rgba(53,240,255,.4); }
+.act-btn.active-fire { border-color:var(--neon-amber); color:var(--neon-amber); box-shadow:0 0 16px rgba(255,179,71,.4); }
+.act-btn.ready { animation: btnPulse 1.4s infinite; }
+@keyframes btnPulse { 0%,100% { filter:brightness(1);} 50% { filter:brightness(1.5);} }
+.act-btn:disabled { opacity:.4; cursor:not-allowed; }
+.dmg-grid { display:grid; grid-template-columns:repeat(2,1fr); gap:8px; font-size:.75rem; }
+.dmg-cell { border:1px solid #2a3b52; border-radius:6px; padding:8px; background:rgba(10,18,28,.8); }
+.dmg-cell b { display:block; font-size:.68rem; letter-spacing:1px; color:#8fa3bd; margin-bottom:4px; }
+.dmg-bar { height:8px; background:#131c29; border-radius:3px; overflow:hidden; border:1px solid #33475e; }
+.dmg-bar i { display:block; height:100%; background:linear-gradient(90deg,#3ad6c4,#7ef2e2); transition:width .3s; }
+.dmg-bar.warnfill i { background:linear-gradient(90deg,#c4574a,#ff8a70); }
+.dmg-note { font-size:.62rem; color:#6d84a0; margin-top:4px; line-height:1.35; }
+.dmg-cell.hurt { border-color:#ff5d5d; box-shadow:0 0 10px rgba(255,93,93,.35); }
+#trLog { max-height:150px; overflow-y:auto; font-family:monospace; font-size:.72rem; background:rgba(5,10,16,.8); border:1px solid #223044; padding:8px; border-radius:6px; }
+#trLog div { padding:1px 0; color:#9fb4cc; }
+#trLog .dmg { color:#ff8a70; } #trLog .kill { color:#ffd23f; } #trLog .warn { color:var(--neon-amber); }
+#trLog .heal { color:#7ef2e2; }
+@media (max-width:900px){ .tr-wrap { flex-direction:column; } }
+
 /* ============================================================
    ЭКРАН «ТРЕНИРОВОЧНЫЙ АНГАР» — полигон с вражескими мехами
    ============================================================ */
@@ -755,6 +852,31 @@ footer {
     <div class="desk"></div>
     <div class="lamp"></div>
     <div class="mug"></div>
+    <!-- Пар над кружкой -->
+    <div class="steam"><i></i><i></i><i></i></div>
+
+    <!-- ПИЛОТЫ СИДЯТ ЗА СТОЛОМ (аниме-фигурки из CSS, с анимациями
+         дыхания, поворотов головы, взгляда, моргания и руки с планшетом) -->
+    <div class="pilot boy" title="Каэдзима «Искра» Рю">
+      <div class="p-torso"><div class="p-stripe"></div></div>
+      <div class="p-head">
+        <div class="p-hair-b"></div>
+        <div class="p-eye l"><div class="p-pupil"></div><div class="p-lid"></div></div>
+        <div class="p-eye r"><div class="p-pupil"></div><div class="p-lid"></div></div>
+        <div class="p-blush l"></div><div class="p-blush r"></div>
+      </div>
+      <div class="p-arm"></div>
+    </div>
+    <div class="pilot girl" title="Мира «Тихоня» Соколова" style="animation-delay:-2s;">
+      <div class="p-torso"><div class="p-stripe"></div></div>
+      <div class="p-head" style="animation-delay:-3s;">
+        <div class="p-hair-g"></div>
+        <div class="p-eye l"><div class="p-pupil"></div><div class="p-lid"></div></div>
+        <div class="p-eye r"><div class="p-pupil"></div><div class="p-lid"></div></div>
+        <div class="p-blush l"></div><div class="p-blush r"></div>
+      </div>
+      <div class="p-arm" style="animation-delay:-1.4s;"></div>
+    </div>
 
     <!-- Папка «Пилот-парень» -->
     <div class="folder boy" onclick="openDossier('boy')" title="Открыть досье">
@@ -826,40 +948,56 @@ footer {
 <!-- ===================== ЭКРАН 3: ТРЕНИРОВОЧНЫЙ АНГАР ===================== -->
 <section id="screenTraining" class="screen">
   <h2 class="screen-title">Тренировочный ангар — Полигон «Эхо»</h2>
-  <p class="screen-sub">Ваши текущие статы применяются к огню и перезарядке. Клик по врагу — фокус огня. Кнопки справа — тест-программы.</p>
+  <p class="screen-sub">Полигон «Эхо» — <b>то же изометрическое поле 16×16, что и в бою</b>, но мехи не ходят:
+     враги стоят на позициях. Два действия за такт: сначала <b>ХОД</b>, потом <b>АТАКА</b>.
+     Голубая сетка — куда дойдёте (зависит от ног), оранжевая — куда стреляет оружие.
+     Повреждения рук и ног напрямую влияют на движение и огонь. Клик по врагу — ответный огонь по вам.</p>
 
   <div class="range-controls">
-    <button id="btnAuto">Автоогонь: ВЫКЛ</button>
-    <button id="btnFire">🔥 Огонь по ближайшему</button>
-    <button id="btnReset">↺ Восстановить мишени</button>
     <button id="btnToHangar">🔧 В ангар</button>
+    <button id="btnTrReset">↺ Восстановить полигон</button>
   </div>
 
-  <div class="training-field" id="trainingField">
-    <!-- Ваш мех (отрисовывается тем же движком, что и в ангаре) -->
-    <div id="playerMechBox"><canvas id="playerMechCanvas" width="220" height="340"></canvas></div>
+  <div class="tr-wrap">
+    <!-- Полотно полигона: та же изометрия 16×16, что и на поле боя -->
+    <canvas id="trainingCanvas" width="896" height="700"></canvas>
 
-    <!-- Вражеские мишени. Структура .parts генерируется JS,
-         но классы enemy-light/medium/heavy задают цвет и размер.
-         См. также комментарий про спрайты spritepaint в CSS. -->
-    <div class="enemy-mech enemy-light"  id="enemyLight"  style="left:52%;">
-      <div class="enemy-tag">УЧЕБНЫЙ ЛЁГКИЙ MK-I</div>
-      <div class="enemy-hp"><i style="width:100%"></i></div>
-      <div class="parts"></div>
-    </div>
-    <div class="enemy-mech enemy-medium" id="enemyMedium" style="left:70%;">
-      <div class="enemy-tag">УЧЕБНЫЙ СРЕДНИЙ MK-II</div>
-      <div class="enemy-hp"><i style="width:100%"></i></div>
-      <div class="parts"></div>
-    </div>
-    <div class="enemy-mech enemy-heavy"  id="enemyHeavy"  style="left:86%;">
-      <div class="enemy-tag">УЧЕБНЫЙ ТЯЖЁЛЫЙ MK-III</div>
-      <div class="enemy-hp"><i style="width:100%"></i></div>
-      <div class="parts"></div>
+    <div class="tr-side">
+      <div class="turn-banner" id="trBanner">ТАКТ 1 · ДЕЙСТВИЕ: ХОД</div>
+
+      <!-- ДВЕ КНОПКИ ДЕЙСТВИЙ: сначала ход, затем атака -->
+      <div class="act-buttons">
+        <button class="act-btn ready active-move" id="btnActMove">👣 ХОД<small>кнопка 1 · клик по голубой сетке</small></button>
+        <button class="act-btn" id="btnActFire" disabled>🎯 АТАКА<small>кнопка 2 · клик по врагу</small></button>
+      </div>
+
+      <!-- Состояние узлов: повреждения рук и ног влияют на движение и оружие -->
+      <div class="panel" style="position:static;display:block;">
+        <h3 style="color:#ffd23f;letter-spacing:2px;margin-bottom:8px;">УЗЛЫ МЕХА</h3>
+        <div class="dmg-grid">
+          <div class="dmg-cell"><b>ПРАВАЯ РУКА (оружие)</b>
+            <div class="dmg-bar" id="barRArm"><i style="width:100%"></i></div>
+            <div class="dmg-note" id="noteRArm">оружие активно</div></div>
+          <div class="dmg-cell"><b>ЛЕВАЯ РУКА (щит)</b>
+            <div class="dmg-bar" id="barLArm"><i style="width:100%"></i></div>
+            <div class="dmg-note" id="noteLArm">защита цела</div></div>
+          <div class="dmg-cell"><b>ТОРС (ядро)</b>
+            <div class="dmg-bar" id="barTorso"><i style="width:100%"></i></div>
+            <div class="dmg-note" id="noteTorso">реактор стабилен</div></div>
+          <div class="dmg-cell"><b>НОГИ (шасси)</b>
+            <div class="dmg-bar" id="barLegs"><i style="width:100%"></i></div>
+            <div class="dmg-note" id="noteLegs">полная скорость шага</div></div>
+        </div>
+      </div>
+
+      <div class="panel" style="position:static;display:block;">
+        <h3 style="color:#35f0ff;letter-spacing:2px;margin-bottom:6px;">ИНФО</h3>
+        <div id="trInfo">Наведите курсор на мех или клетку.</div>
+      </div>
+
+      <div id="trLog"></div>
     </div>
   </div>
-
-  <div id="logBox"></div>
 </section>
 
 <!-- ===================== ЭКРАН 4: КАРТА ГОРОДА ===================== -->
@@ -1181,7 +1319,15 @@ fillSelect("slotWeapon",   WEAPONS,        "weapon");
 /* Отрисовка вашего меха на полигоне (общая функция обновления обоих экранов) */
 function refreshAll() {
   refresh();                    // панель статов + мех в ангаре
-  drawMech(playerMechCanvas, true); // тот же мех на тренировочном полигоне
+  if (typeof trPlayer !== "undefined" && trPlayer) {
+    /* сборка изменилась -> обновляем боевые параметры меха на полигоне */
+    const t = totalStats();
+    Object.assign(trPlayer, { cls:loadout.torso, weapon:loadout.weapon,
+      hp:t.hp, maxHp:t.hp, power:t.power, armor:Math.round(t.weight*3),
+      move: Math.max(2, Math.min(6, Math.round(t.speed/4))),
+      fireRange: 5 + (2 - loadout.torso), partHp: makePartHp(t) });
+    computeTrainZones(); refreshTrainNodes();
+  }
 }
 
 /* Цикл «дыхания» меха в ангаре: redraw только когда экран ангара виден — экономим CPU */
@@ -1201,125 +1347,246 @@ function openDossier(who) {
 function closeModal(id) { document.getElementById(id).classList.remove("open"); }
 
 /* ============================================================
-   ТРЕНИРОВОЧНЫЙ АНГАР: боёвка на статах игрока
+   ТРЕНИРОВОЧНЫЙ ПОЛИГОН «ЭХО»: тот же движок изометрии 16×16,
+   что и на поле боя, но вражеские мехи СТОЯТ НА ПОЗИЦИЯХ
+   (не ходят). За такт игрок делает ДВА ДЕЙСТВИЯ В СТРОГОМ
+   ПОРЯДКЕ: сначала ХОД (кнопка 1 + клик по голубой сетке),
+   затем АТАКА (кнопка 2 + клик по врагу в оранжевой сетке —
+   «до куда стреляет»). Повреждения рук и ног влияют на зону
+   хода и огонь; мишени отвечают залпом, если достреливают.
    ============================================================ */
-const ENEMIES = {
-  enemyLight:  { hp: 120, max: 120, dmgTakenMul: 1.2 }, // лёгкий получает больше урона
-  enemyMedium: { hp: 220, max: 220, dmgTakenMul: 1.0 },
-  enemyHeavy:  { hp: 420, max: 420, dmgTakenMul: 0.7 }, // тяжёлый бронирован
-};
-let focusTarget = null;
-let autoFire = false;
-let lastShot = 0;
+const trCanvas = document.getElementById("trainingCanvas");
+const trCtx = trCanvas.getContext("2d");
+let trUnits = [], trPlayer = null;
+let trReachCells = new Set(), trFireCells = new Set();
+let trHoverCell = null, trHoverU = null;
+let trAct = "move";                          // move | fire | busy | over
+let trTurn = 1;
+const trRef = { p:"player", tiles:null, log:(m,c)=>trLog(m,c) };
 
-/* Генерируем «тело» вражеских мишеней div-блоками (см. CSS .e-*).
-   Если хотите свои спрайты spritepaint — добавьте <img> сюда вместо блоков. */
-function buildEnemyParts() {
-  document.querySelectorAll(".enemy-mech .parts").forEach(p => {
-    p.innerHTML = `
-      <div class="e-head"></div>
-      <div class="e-torso"></div>
-      <div class="e-arm l"></div><div class="e-arm r"></div>
-      <div class="e-leg l"></div><div class="e-leg r"></div>
-      <div class="e-weapon"></div>`;
-  });
-}
-buildEnemyParts();
-
-/* Клик по врагу — назначить его целью огня */
-Object.keys(ENEMIES).forEach(id => {
-  const el = document.getElementById(id);
-  el.addEventListener("click", () => {
-    focusTarget = id;
-    log(`Цель захвачена: ${el.querySelector(".enemy-tag").textContent}`);
-    fireAt(id);
-  });
-});
-
-function nearestAlive() {
-  const alive = Object.keys(ENEMIES).filter(k => ENEMIES[k].hp > 0);
-  if (!alive.length) return null;
-  if (focusTarget && ENEMIES[focusTarget].hp > 0) return focusTarget;
-  return alive[0];
+function trLog(msg, cls) {
+  const box = document.getElementById("trLog");
+  box.innerHTML += `<div class="${cls||""}">[ТАКТ ${trTurn}] ${msg}</div>`;
+  box.scrollTop = box.scrollHeight;
 }
 
-/* Выстрел: урон = сила, скорость стрельбы = скорость меха */
-function fireAt(id) {
-  const e = ENEMIES[id];
-  if (!e || e.hp <= 0) return;
-  const now = performance.now();
+/* --- расстановка полигона: ровная площадка без завалов --- */
+function setupTraining() {
   const t = totalStats();
-  const cooldown = Math.max(160, 1400 - t.speed * 45); // чем выше скорость — тем чаще
-  if (now - lastShot < cooldown) return;
-  lastShot = now;
-
-  const field = document.getElementById("trainingField");
-  const enemyEl = document.getElementById(id);
-  const pb = document.getElementById("playerMechBox");
-
-  /* Трассер от нашего меха до цели */
-  const tr = document.createElement("div");
-  tr.className = "tracer";
-  const x1 = pb.offsetLeft + pb.offsetWidth, y1 = field.clientHeight - 170;
-  const x2 = enemyEl.offsetLeft + 10,        y2 = field.clientHeight - 150;
-  const len = Math.hypot(x2 - x1, y2 - y1);
-  const ang = Math.atan2(y2 - y1, x2 - x1) * 180 / Math.PI;
-  tr.style.cssText += `left:${x1}px; top:${y1}px; width:${len}px; transform:rotate(${ang}deg); transform-origin:left center;`;
-  field.appendChild(tr);
-  setTimeout(() => tr.remove(), 300);
-
-  pb.classList.remove("firing"); void pb.offsetWidth; pb.classList.add("firing");
-
-  /* Урон и эффекты попадания */
-  const dmg = Math.max(1, Math.round(t.power * e.dmgTakenMul));
-  e.hp = Math.max(0, e.hp - dmg);
-  enemyEl.querySelector(".enemy-hp i").style.width = (e.hp / e.max * 100) + "%";
-  enemyEl.classList.remove("hit"); void enemyEl.offsetWidth; enemyEl.classList.add("hit");
-  log(`Попадание в ${id.replace("enemy","")} мех: −${dmg} ХП`);
-
-  if (e.hp === 0) {
-    const boom = document.createElement("div");
-    boom.className = "boom";
-    const sz = enemyEl.offsetWidth * 1.4;
-    boom.style.cssText = `left:${enemyEl.offsetLeft - sz / 4}px; top:${field.clientHeight - enemyEl.offsetHeight - sz / 3}px; width:${sz}px; height:${sz}px;`;
-    field.appendChild(boom);
-    setTimeout(() => boom.remove(), 750);
-    enemyEl.style.opacity = ".15";
-    enemyEl.style.filter = "grayscale(1)";
-    log(`✔ ${enemyEl.querySelector(".enemy-tag").textContent} УНИЧТОЖЕН`, "kill");
-  }
+  trRef.tiles = null;                        // полигон ровный: препятствий нет
+  trUnits = [];
+  trPlayer = {
+    id:"tp", name:"ВАШ МЕХ", team:"player", cls:loadout.torso, weapon:loadout.weapon,
+    gx:3, gy:3, hp:t.hp, maxHp:t.hp, power:t.power, armor:Math.round(t.weight*3),
+    move: Math.max(2, Math.min(6, Math.round(t.speed/4))),
+    fireRange: 5 + (2 - loadout.torso),
+    partHp: makePartHp(t),
+    anim:{ phase:"idle", walkPath:null, walkT:0, aimAng:0, recoil:0, bob:0 },
+  };
+  trUnits.push(trPlayer);
+  /* учебные цели стоят на позициях и сами не наступают — только отвечают огнём */
+  const dummies = [
+    { id:"td_l", name:"МИШЕНЬ ЛЁГКАЯ",  cls:0, gx:9,  gy:3,  hp:120, dmg:8,  armor:2,  move:4, fireRange:5 },
+    { id:"td_m", name:"МИШЕНЬ СРЕДНЯЯ", cls:1, gx:11, gy:7,  hp:220, dmg:12, armor:6,  move:3, fireRange:5 },
+    { id:"td_h", name:"МИШЕНЬ ТЯЖЁЛАЯ", cls:2, gx:7,  gy:11, hp:420, dmg:18, armor:12, move:2, fireRange:6 },
+  ];
+  dummies.forEach(d => trUnits.push({ ...d, team:"enemy", maxHp:d.hp, weapon:1+d.cls,
+    partHp: makePartHp({hp:d.hp}),
+    anim:{ phase:"idle", walkPath:null, walkT:0, aimAng:0, recoil:0, bob:Math.random()*6 } }));
+  trTurn = 1; trAct = "move"; fx = [];
+  document.getElementById("trLog").innerHTML = "";
+  trLog("Полигон «Эхо» готов. Порядок действий за такт: ХОД → АТАКА.");
+  computeTrainZones();
+  refreshTrainNodes();
+  updateTrainUi();
 }
 
-/* Автоогонь */
-setInterval(() => {
-  if (!autoFire) return;
-  if (!document.getElementById("screenTraining").classList.contains("visible")) return;
-  const id = nearestAlive();
-  if (id) fireAt(id); else { autoFire = false; btnAuto.classList.remove("on"); btnAuto.textContent = "Автоогонь: ВЫКЛ"; log("Все мишни уничтожены. Автоогонь остановлен.", "warn"); }
-}, 120);
+/* --- зоны: голубая сетка хода (ноги!) и оранжевая сетка огня (рука-оружие!) --- */
+function computeTrainZones() {
+  const savedMove = trPlayer.move;           // ноги повреждены -> зона хода сжимается
+  trPlayer.move = effMove(trPlayer);
+  computeReachInto(trReachCells, trPlayer, trUnits, null);
+  trPlayer.move = savedMove;
+  const fr = trPlayer.fireRange;             // правая рука повреждена -> дальность падает
+  trPlayer.fireRange = effFireRange(trPlayer);
+  computeFireCells(trFireCells, trPlayer);
+  trPlayer.fireRange = fr;
+}
 
-/* Кнопки полигона */
-btnFire.onclick = () => { const id = nearestAlive(); if (id) fireAt(id); else log("Нет живых целей — сбросьте мишени!", "warn"); };
-btnAuto.onclick = () => {
-  autoFire = !autoFire;
-  btnAuto.classList.toggle("on", autoFire);
-  btnAuto.textContent = `Автоогонь: ${autoFire ? "ВКЛ" : "ВЫКЛ"}`;
-};
-btnReset.onclick = () => {
-  for (const k in ENEMIES) { ENEMIES[k].hp = ENEMIES[k].max; const el = document.getElementById(k);
-    el.querySelector(".enemy-hp i").style.width = "100%"; el.style.opacity = "1"; el.style.filter = "none"; }
-  log("Мишени восстановлены. Полигон готов.");
-};
-btnToHangar.onclick = () => goScreen("screenHangar");
+/* --- панель узлов: полоски состояния + подписи влияния на ход и огонь --- */
+function refreshTrainNodes() {
+  const map = [["barRArm","noteRArm","rArm"],["barLArm","noteLArm","lArm"],["barTorso","noteTorso","torso"],["barLegs","noteLegs","legs"]];
+  map.forEach(([barId, noteId, key]) => {
+    const p = trPlayer.partHp[key];
+    const bar = document.getElementById(barId);
+    bar.querySelector("i").style.width = (p.pct*100)+"%";
+    bar.classList.toggle("warnfill", p.pct < 0.6);
+    bar.closest(".dmg-cell").classList.toggle("hurt", p.pct < 0.6);
+    let note = "";
+    if (key === "legs") note = p.pct<=0 ? "НОГИ ВЫБИТЫ: мех не идёт (зона хода пуста)"
+      : p.pct<0.35 ? "сильно изношены: шаг 1 клетка"
+      : p.pct<0.6 ? "повреждены: шаг вдвое короче"
+      : `полная скорость шага (${effMove(trPlayer)} кл)`;
+    if (key === "rArm") note = p.pct<=0 ? "РУКА-ОРУЖИЕ УНИЧТОЖЕНА: стрелять нечем"
+      : p.pct<0.6 ? "трясётся: урон ниже, мажет, −2 кл дальности"
+      : `оружие активно (огонь до ${effFireRange(trPlayer)} кл)`;
+    if (key === "lArm") note = p.pct<=0 ? "ЩИТ ПРОБИТ: урон по вам не гасится"
+      : p.pct<0.6 ? "щит треснул: хуже гасит урон" : "защита цела";
+    if (key === "torso") note = p.pct<=0 ? "ТОРС РАЗРУШЕН" : p.pct<0.6 ? "ядро нестабильно: ремонт!" : "реактор стабилен";
+    document.getElementById(noteId).textContent = note;
+  });
+}
 
-/* Периодические «ответные покачивания-атаки» мишеней для жизни на экране */
-setInterval(() => {
-  const alive = Object.keys(ENEMIES).filter(k => ENEMIES[k].hp > 0);
-  if (!alive.length) return;
-  const pick = alive[Math.floor(Math.random() * alive.length)];
-  const el = document.getElementById(pick);
-  el.classList.remove("attacking"); void el.offsetWidth; el.classList.add("attacking");
-}, 1800);
+/* --- кнопки ХОД / АТАКА: два действия за такт, строго по порядку --- */
+const btnActMove = document.getElementById("btnActMove");
+const btnActFire = document.getElementById("btnActFire");
+function updateTrainUi() {
+  const b = document.getElementById("trBanner");
+  b.style.color = ""; b.style.textShadow = "";
+  if (trAct === "over") b.textContent = "ПОЛИГОН ОСТАНОВЛЕН · ВОССТАНОВИТЕ ЕГО КНОПКОЙ";
+  else if (trAct === "busy") b.textContent = `ТАКТ ${trTurn} · ВЫПОЛНЯЕТСЯ ПРИКАЗ…`;
+  else if (trAct === "move") b.textContent = `ТАКТ ${trTurn} · ДЕЙСТВИЕ 1: ХОД (клик по голубой сетке)`;
+  else b.textContent = `ТАКТ ${trTurn} · ДЕЙСТВИЕ 2: АТАКА (клик по врагу в оранжевой сетке)`;
+  btnActMove.classList.toggle("active-move", trAct==="move");
+  btnActMove.classList.toggle("ready", trAct==="move");
+  btnActMove.disabled = trAct !== "move";
+  btnActFire.classList.toggle("active-fire", trAct==="fire");
+  btnActFire.classList.toggle("ready", trAct==="fire");
+  btnActFire.disabled = trAct !== "fire";
+}
+btnActMove.onclick = () => { if (trAct==="move") trLog("Режим ХОДА активен: кликните по голубой сетке зоны движения."); };
+btnActFire.onclick = () => {
+  if (trAct !== "fire") return;
+  if (effFireRange(trPlayer) === 0) { trLog("Правая рука-оружие уничтожена — стрелять нечем! Конец такта.", "warn"); finishTrainTurn(); return; }
+  trLog("Режим ОГНЯ: кликните по врагу внутри оранжевой сетки («до куда стреляет»).");
+};
+
+/* --- приказ полигона: клик по canvas --- */
+function trainClick(px, py) {
+  if (trAct !== "move" && trAct !== "fire") return;
+  const { gx, gy } = screenToIso(px, py);
+  const foe = trUnits.find(u => u.team==="enemy" && u.hp>0 && u.gx===gx && u.gy===gy);
+  if (trAct === "move") {
+    if (foe) { trLog("Сначала ХОД (кнопка 1): атака доступна после перемещения.", "warn"); return; }
+    if (trReachCells.has(gy*BT_MAP+gx)) {
+      startMove(trUnits, trRef, trPlayer, {gx, gy}, () => {
+        computeTrainZones();               // новая позиция — новые зоны
+        trAct = "fire"; trRef.p = "fire"; updateTrainUi();
+        trLog("Ход сделан. Теперь АТАКА (кнопка 2).");
+      });
+      trRef.p = "busy"; updateTrainUi();
+    } else trLog("Вне зоны хода. Голубая сетка — куда дойдут ноги (битые ноги сокращают её).");
+    return;
+  }
+  /* фаза АТАКИ */
+  if (!foe) { trLog("Атака: кликните по вражескому меху на карте."); return; }
+  const dist = Math.abs(foe.gx-trPlayer.gx)+Math.abs(foe.gy-trPlayer.gy);
+  const range = effFireRange(trPlayer);
+  if (range === 0) { trLog("Рука-оружие цеха? Нет — она уничтожена. Стрелять нечем!", "warn"); return; }
+  if (dist > range) { trLog(`МИШЕНЬ вне огня: ${dist} кл, ствол дотягивает до ${range} (оранжевая сетка).`, "warn"); return; }
+  orderFire(trRef, trPlayer, foe, () => afterTrainShot());
+  trRef.p = "busy"; updateTrainUi();
+}
+
+/* --- после нашего выстрела: живые мишени в радиусе отвечают залпом, такт закрыт --- */
+function afterTrainShot() {
+  if (checkTrainOver()) return;
+  const shooters = trUnits.filter(u => u.team==="enemy" && u.hp>0 && !u._avenged &&
+    (Math.abs(u.gx-trPlayer.gx)+Math.abs(u.gy-trPlayer.gy)) <= effFireRange(u));
+  if (!shooters.length) { finishTrainTurn(); return; }
+  let i = 0;
+  const nextRetaliation = () => {
+    if (i >= shooters.length || trPlayer.hp <= 0) { finishTrainTurn(); return; }
+    const s = shooters[i++];
+    s._avenged = true;
+    trLog(`${s.name} отвечает огнём!`);
+    orderFire(trRef, s, trPlayer, nextRetaliation);
+  };
+  setTimeout(nextRetaliation, 350);
+}
+function finishTrainTurn() {
+  trUnits.forEach(u => u._avenged = false);
+  if (checkTrainOver()) return;
+  trTurn++;
+  trAct = "move"; trRef.p = "move";
+  computeTrainZones();                     // повреждения прошлого такта сразу меняют сетки
+  refreshTrainNodes();
+  updateTrainUi();
+}
+function checkTrainOver() {
+  if (trPlayer.hp <= 0) {
+    trAct = "over"; trRef.p = "over"; updateTrainUi();
+    showBannerOn(document.getElementById("trBanner"), "МЕХ РАЗБИТ · СБРОС ПОЛИГОНА", "#ff5d5d");
+    trLog("Корпус разрушен. Нажмите «Восстановить полигон».", "dmg");
+    return true;
+  }
+  if (!trUnits.some(u => u.team==="enemy" && u.hp>0)) {
+    trAct = "over"; trRef.p = "over"; updateTrainUi();
+    showBannerOn(document.getElementById("trBanner"), "ВСЕ МИШЕНИ УНИЧТОЖЕНЫ!", "#ffd23f");
+    trLog("Полигон зачищен — отличная работа, пилот!", "kill");
+    return true;
+  }
+  return false;
+}
+function showBannerOn(el, text, color) { el.textContent = text; el.style.color = color; el.style.textShadow = `0 0 14px ${color}`; }
+document.getElementById("btnTrReset").onclick = () => setupTraining();
+document.getElementById("btnToHangar").onclick = () => goScreen("screenHangar");
+
+/* --- мышь над полигоном: инфо о юните/клетке + hover-подсветка --- */
+function trPoint(ev) {
+  const r = trCanvas.getBoundingClientRect();
+  return { x:(ev.clientX-r.left)*(trCanvas.width/r.width), y:(ev.clientY-r.top)*(trCanvas.height/r.height) };
+}
+trCanvas.addEventListener("mousemove", ev => {
+  const p = trPoint(ev);
+  const c = screenToIso(p.x, p.y);
+  trHoverCell = (c.gx>=0&&c.gy>=0&&c.gx<BT_MAP&&c.gy<BT_MAP) ? c : null;
+  trHoverU = trUnits.find(u => u.hp>0 && u.gx===c.gx && u.gy===c.gy) || null;
+  const info = document.getElementById("trInfo");
+  if (trHoverU) {
+    const ph = trHoverU.partHp;
+    info.innerHTML = `<b>${trHoverU.name}</b><br>ХП ${trHoverU.hp}/${trHoverU.maxHp}<br>` +
+      (trHoverU.team==="enemy"
+        ? `<span style="color:#ff8a70">ЦЕЛЬ: клик в фазе АТАКИ</span><br>рука:${Math.round(ph.rArm.pct*100)}% ноги:${Math.round(ph.legs.pct*100)}%`
+        : `ход ${effMove(trHoverU)} кл · огонь до ${effFireRange(trHoverU)} кл`);
+  } else if (trHoverCell) {
+    const k = trHoverCell.gy*BT_MAP+trHoverCell.gx;
+    info.innerHTML = `Клетка [${trHoverCell.gx}, ${trHoverCell.gy}] · ` +
+      (trReachCells.has(k) ? "<span style='color:#35f0ff'>зона ХОДА</span>"
+       : trFireCells.has(k) ? "<span style='color:#ffb347'>зона ОГНЯ (дальность ствола)</span>"
+       : "вне зон");
+  }
+});
+trCanvas.addEventListener("click", ev => { const p = trPoint(ev); trainClick(p.x, p.y); });
+
+/* --- рендер полигона: та же изометрия, что и бой; мишени стоят (idle-покачивание) --- */
+function renderTraining() {
+  if (!document.getElementById("screenTraining").classList.contains("visible")) { requestAnimationFrame(renderTraining); return; }
+  trCtx.clearRect(0, 0, trCanvas.width, trCanvas.height);
+  const g = trCtx.createLinearGradient(0,0,0,trCanvas.height);
+  g.addColorStop(0,"#0b1322"); g.addColorStop(.5,"#0d1726"); g.addColorStop(1,"#0a1018");
+  trCtx.fillStyle = g; trCtx.fillRect(0,0,trCanvas.width,trCanvas.height);
+  drawIsometricTiles(trCtx, null, trAct==="move" ? trReachCells : null, trFireCells, trHoverCell);
+  stepUnitsAnim(trUnits);                  // продвижение анимаций ходьбы/залпа
+  const sorted = [...trUnits].filter(u=>u.hp>0 || u.deadAt).sort((a,b)=>{
+    const pa=isoToScreen(a.gx,a.gy), pb=isoToScreen(b.gx,b.gy);
+    return (pa.y - pb.y) || (pa.x - pb.x);
+  });
+  sorted.forEach(u => {
+    if (u.hp <= 0) {
+      const p = isoToScreen(u.gx,u.gy);
+      trCtx.globalAlpha = 0.25; trCtx.fillStyle = "#555";
+      trCtx.fillRect(p.x-14, p.y-24, 28, 20); trCtx.globalAlpha = 1;
+      return;
+    }
+    const p = unitPixelPos(u);
+    drawMechIso(trCtx, u, p.x, p.y + BT_TILE_H/2, u===trPlayer && trAct!=="over", u===trHoverU);
+  });
+  updateAndDrawFx(trCtx);
+  requestAnimationFrame(renderTraining);
+}
+requestAnimationFrame(renderTraining);
+setupTraining();                           // полигон живёт своей жизнью независимо от боя
 
 /* Мини-лог полигона */
 function log(msg, cls) {
@@ -1364,32 +1631,20 @@ function deployMech() {
 }
 
 /* ============================================================
-   ПОЛЕ БОЯ: ПОШАГОВЫЙ БОЙ, ИЗОМЕТРИЧЕСКАЯ КАРТА 16x16
-   (вид сверху-сбоку в стиле Diablo II / Fallout 1)
+   ОБЩАЯ ИЗОМЕТРИЧЕСКАЯ СЕТКА 16×16 (используют её ПОЛЕ БОЯ
+   и ТРЕНИРОВОЧНЫЙ ПОЛИГОН «ЭХО») — вид сверху-сбоку в стиле
+   Diablo II / Fallout 1.
    ------------------------------------------------------------
-   СПРАЙТЫ: мехи и враги отрисованы программно на Canvas.
+   СПРАЙТЫ: мехи отрисованы программно на Canvas.
    Если вы нарисовали своих мехов на https://spritepaint.com/ —
-   загрузите PNG, замените base64-строку ниже и раскомментируйте
+   загрузите PNG, укажите путь в SPRITE_IMG ниже и раскомментируйте
    img.drawImage(...) в функции drawBattleMech(). Пока image не
    загружен — рисуется процедурная графика.
    Пример: const SPRITE_IMG = new Image(); SPRITE_IMG.src = "mech.png";
    ============================================================ */
 const BT_TILE_W = 52, BT_TILE_H = 26;      // размеры ромба клетки в изометрии
 const BT_MAP = 16;                          // карта 16 x 16 клеток
-const btCanvas = document.getElementById("battleCanvas");
-const btCtx = btCanvas.getContext("2d");
 const BATTLE_ORIGIN_X = 448, BATTLE_ORIGIN_Y = 90; // вершина ромба карты на полотне
-
-/* --- тайлы карты: 0 = пол, 1 = стена (обломок), 2 = радиоактивная лужа (нельзя идти) --- */
-let btTiles = null;
-function genMap() {
-  btTiles = Array.from({ length: BT_MAP }, () => Array(BT_MAP).fill(0));
-  /* детерминированные декорации-стены, чтобы проход был всегда возможен */
-  const walls = [[2,3],[3,3],[2,4],[7,1],[8,1],[12,2],[12,3],[13,6],[14,6],[4,8],[5,8],[10,9],[10,10],[2,12],[3,12],[8,13],[9,13],[13,11],[13,12]];
-  walls.forEach(([x,y]) => btTiles[y][x] = 1);
-  const puddles = [[6,5],[11,4],[4,11],[12,13],[9,7]];
-  puddles.forEach(([x,y]) => btTiles[y][x] = 2);
-}
 
 /* --- преобразование координат: клетка -> экран (изометрия), экран -> клетка --- */
 function isoToScreen(gx, gy) {
@@ -1403,43 +1658,18 @@ function screenToIso(px, py) {
   return { gx, gy };
 }
 
-/* --- юниты боя ---
-   speed определяет ЧИСЛО ДЕЙСТВИЙ за ход (быстрый лёгкий мех — 2 действия),
-   move — сколько клеток проходит за одно действие перемещения */
-let btUnits = [];
-let btPlayer = null;
-function buildBattleUnits() {
-  const t = totalStats();
-  btUnits = [];
-  btPlayer = {
-    id:"player", name:"ВАШ МЕХ", team:"player", cls:loadout.torso, weapon:loadout.weapon,
-    gx:2, gy:2, hp:t.hp, maxHp:t.hp, power:t.power, armor:Math.round(t.weight*3),
-    move: Math.max(2, Math.min(6, Math.round(t.speed/4))),
-    actions: t.speed >= 20 ? 2 : 1,            // скорость = больше действий за ход
-    anim:{ phase:"idle", walkPath:null, walkT:0, aimAng:0, recoil:0, bob:Math.random()*6 },
-  };
-  btUnits.push(btPlayer);
-  /* три вражеских меха: лёгкий / средний / тяжёлый — цвета и размеры различаются */
-  const enemies = [
-    { id:"e_light",  name:"РАЗВЕДЧИК MK-I",  cls:0, gx:13, gy:4,  hp:120, dmg:10, armor:2, move:5, actions:2 },
-    { id:"e_medium", name:"ШТУРМОВИК MK-II", cls:1, gx:12, gy:9,  hp:220, dmg:16, armor:6, move:3, actions:1 },
-    { id:"e_heavy",  name:"СУДЬЯ MK-III",    cls:2, gx:8,  gy:13, hp:420, dmg:26, armor:14, move:2, actions:1 },
-  ];
-  enemies.forEach(e => btUnits.push({ ...e, team:"enemy", maxHp:e.hp, weapon:1+e.cls,
-    anim:{ phase:"idle", walkPath:null, walkT:0, aimAng:0, recoil:0, bob:Math.random()*6 } }));
+/* --- A*-поиск пути по сетке (как в Diablo II — юнит идёт «тропинкой»).
+       Функция универсальна: принимает любой массив юнитов. --- */
+function occupiedIn(list, gx, gy, ignoreUnit) {
+  return list.some(u => u !== ignoreUnit && u.hp > 0 && u.gx === gx && u.gy === gy);
 }
-
-/* --- A*-поиск пути по сетке (как в Diablo II — юнит идёт «тропинкой») --- */
-function occupied(gx, gy, ignoreUnit) {
-  return btUnits.some(u => u !== ignoreUnit && u.hp > 0 && u.gx === gx && u.gy === gy);
-}
-function walkable(gx, gy, unit) {
+function walkableIn(list, gx, gy, unit, tiles) {
   if (gx < 0 || gy < 0 || gx >= BT_MAP || gy >= BT_MAP) return false;
-  if (btTiles[gy][gx] !== 0) return false;
-  return !occupied(gx, gy, unit);
+  if (tiles && tiles[gy][gx] !== 0) return false;
+  return !occupiedIn(list, gx, gy, unit);
 }
-function findPath(from, to, unit) {
-  if (!walkable(to.gx, to.gy, unit)) return null;
+function findPathIn(from, to, unit, list, tiles) {
+  if (!walkableIn(list, to.gx, to.gy, unit, tiles)) return null;
   const key = (x,y) => y*BT_MAP+x;
   const open = [{ x:from.gx, y:from.gy, g:0, f:0, parent:null }];
   const came = new Map();
@@ -1455,9 +1685,9 @@ function findPath(from, to, unit) {
     came.set(key(cur.x,cur.y), true);
     for (const [dx,dy] of [[1,0],[-1,0],[0,1],[0,-1],[1,1],[1,-1],[-1,1],[-1,-1]]) {
       const nx = cur.x+dx, ny = cur.y+dy;
-      if (!walkable(nx,ny,unit) || came.has(key(nx,ny))) continue;
+      if (!walkableIn(list,nx,ny,unit,tiles) || came.has(key(nx,ny))) continue;
       if (dx && dy) { // по диагонали нельзя срезать через два угла стен
-        if (!walkable(cur.x+dx,cur.y,unit) || !walkable(cur.x,cur.y+dy,unit)) continue;
+        if (!walkableIn(list,cur.x+dx,cur.y,unit,tiles) || !walkableIn(list,cur.x,cur.y+dy,unit,tiles)) continue;
       }
       const g = cur.g + (dx&&dy?1.41:1);
       open.push({ x:nx, y:ny, g, f:g+h(nx,ny)*1.01, parent:cur });
@@ -1466,359 +1696,128 @@ function findPath(from, to, unit) {
   return null;
 }
 
-/* --- состояние хода --- */
-let btPhase = "player";        // player | enemy | busy (идёт анимация) | over
-let btActingUnit = null;       // юнит игрока, ожидающий действия (в бою он один)
-let btReachCells = new Set();  // куда можно дойти за действие (подсветка как в F1/D2)
-let btHover = null;            // клетка под курсором
-let btTurnNum = 1;
-
-function computeReach(unit) {
-  btReachCells = new Set();
-  if (!unit) return;
-  /* flood-fill на расстояние unit.move, обходя стены и юнитов */
+/* --- flood-fill зоны хода на расстояние unit.move (для подсветки сеткой) --- */
+function computeReachInto(set, unit, list, tiles) {
+  set.clear();
+  if (!unit || unit.move <= 0) return;
   let frontier = [{x:unit.gx,y:unit.gy,d:0}];
   const seen = new Set([unit.gy*BT_MAP+unit.gx]);
   while (frontier.length) {
     const c = frontier.shift();
-    if (c.d > 0) btReachCells.add(c.y*BT_MAP+c.x);
+    if (c.d > 0) set.add(c.y*BT_MAP+c.x);
     if (c.d >= unit.move) continue;
     for (const [dx,dy] of [[1,0],[-1,0],[0,1],[0,-1],[1,1],[1,-1],[-1,1],[-1,-1]]) {
       const nx=c.x+dx, ny=c.y+dy, k=ny*BT_MAP+nx;
-      if (seen.has(k) || !walkable(nx,ny,unit)) continue;
-      if (dx&&dy && (!walkable(c.x+dx,c.y,unit)||!walkable(c.x,c.y+dy,unit))) continue;
+      if (seen.has(k) || !walkableIn(list,nx,ny,unit,tiles)) continue;
+      if (dx&&dy && (!walkableIn(list,c.x+dx,c.y,unit,tiles)||!walkableIn(list,c.x,c.y+dy,unit,tiles))) continue;
       seen.add(k); frontier.push({x:nx,y:ny,d:c.d+1});
     }
   }
 }
 
-function beginPlayerActions() {
-  btPhase = "player";
-  btActingUnit = btPlayer;
-  computeReach(btPlayer);
-  updateTurnBanner();
-  refreshBattleHud();
-}
-function endPlayerTurn() {
-  if (btPhase !== "player") return;
-  btPhase = "busy";
-  updateTurnBanner();
-  beginEnemyPhase();                     // сброс флагов _done и запуск фазы противника
-}
-
-/* Ход врагов: каждый по очереди делает движение к игроку и выстрел (если достреливает) */
-function beginEnemyPhase() {
-  btUnits.filter(u => u.team==="enemy" && u.hp>0).forEach(u => u._done = false);
-  btPhase = "enemy";
-  updateTurnBanner();
-  setTimeout(enemyTurnStep, 350);
-}
-function enemyTurnStep() {
-  const foes = btUnits.filter(u => u.team==="enemy" && u.hp>0);
-  const next = foes.find(u => !u._done);
-  if (!next) { btTurnNum++; beginPlayerActions(); return; }
-  next._done = true;
-  const dist = Math.abs(next.gx-btPlayer.gx)+Math.abs(next.gy-btPlayer.gy);
-  const range = 4 + next.cls; // тяжёлый стреляет дальше
-  if (dist <= range) {
-    /* атака: разворот ствола + залп с трассером */
-    orderFire(next, btPlayer, () => afterEnemyAction(next));
-  } else if (dist <= range + next.move) {
-    /* близко, но цель за укрытием? всё равно идём ближе и стреляем */
-    moveToward(next, btPlayer, () => afterEnemyAction(next));
-  } else {
-    moveToward(next, btPlayer, () => afterEnemyAction(next));
-  }
-}
-function afterEnemyAction(next) {
-  if (checkBattleOver()) return;
-  setTimeout(enemyTurnStep, 300);
-}
-function moveToward(unit, target, done) {
-  /* идем к последней свободной клетке рядом с целью */
-  const cells = [[1,0],[-1,0],[0,1],[0,-1],[1,1],[1,-1],[-1,1],[-1,-1]]
-    .map(([dx,dy])=>({gx:target.gx+dx, gy:target.gy+dy}))
-    .filter(c=>walkable(c.gx,c.gy,unit))
-    .sort((a,b)=> (Math.hypot(a.gx-unit.gx,a.gy-unit.gy)) - (Math.hypot(b.gx-unit.gx,b.gy-unit.gy)));
-  const dest = cells[0];
-  if (!dest) { done(); return; }
-  startMove(unit, dest, done);
-}
-
-/* --- приказ игрока: клик по карте --- */
-function battleClick(px, py) {
-  if (btPhase !== "player" || !btActingUnit) return;
-  const { gx, gy } = screenToIso(px, py);
-  /* клик по врагу — огонь, если в радиусе выстрела */
-  const foe = btUnits.find(u => u.team==="enemy" && u.hp>0 && u.gx===gx && u.gy===gy);
-  if (foe) {
-    const dist = Math.abs(foe.gx-btActingUnit.gx)+Math.abs(foe.gy-btActingUnit.gy);
-    const range = 5 + (2 - loadout.torso); // лёгкая сборка стреляет дальше
-    if (dist <= range) { orderFire(btActingUnit, foe, playerActionFinished); btlLog(`Огонь по ${foe.name}!`); }
-    else btlLog(`Цель слишком далеко (${dist} кл., максимум ${range}). Сначала сблизьтесь.`, "dmg");
-    return;
-  }
-  /* клик по доступной клетке — шаг туда (анимация движения) */
-  if (btReachCells.has(gy*BT_MAP+gx)) {
-    startMove(btActingUnit, {gx, gy}, playerActionFinished);
-  } else {
-    btlLog("Туда не пройти за один рывок — выберите подсвеченную клетку.");
-  }
-}
-/* Действие игрока завершено: либо остаётся фаза игрока (ещё действия), либо ход врагов. */
-function playerActionFinished() {
-  if (checkBattleOver()) return;
-  btActingUnit.actions--;
-  if (btActingUnit.actions > 0) {
-    btPhase = "player";                    // возвращаем управление: осталось действие (у быстрых сборок)
-    computeReach(btActingUnit);
-    updateTurnBanner();
-  } else {
-    beginEnemyPhase();                     // действия кончились — ход противника
-  }
-}
-
-/* --- движение с АНИМАЦИЕЙ ШАГОВ МЕХА: юнит идёт по клеткам пути,
-       покадрово интерполируется, походка кодыряет (bob/шаги ног) --- */
-function startMove(unit, dest, done) {
-  const path = findPath({gx:unit.gx,gy:unit.gy}, dest, unit);
-  if (!path || !path.length) { done && done(); return; }
-  btPhase = "busy";
-  unit.anim.phase = "walk";
-  unit.anim.walkPath = [{gx:unit.gx,gy:unit.gy}, ...path];
-  unit.anim.walkSeg = 0;
-  unit.anim.walkT = 0;
-  unit._moveDone = done;
-  /* скорость шага зависит от speed-стата: быстрые ноги перебирают чаще */
-  unit.anim.stepDur = Math.max(90, 320 - (unit.move*28));
-}
-
-/* --- стрельба с АНИМАЦИЕЙ ОРУЖИЯ: разворот ствола к цели, отдача, дульная вспышка, трассер --- */
-function orderFire(shooter, target, done) {
-  btPhase = "busy";
-  shooter.anim.phase = "aim";
-  const a = isoToScreen(shooter.gx, shooter.gy), b = isoToScreen(target.gx, target.gy);
-  shooter.anim.aimTarget = { x:b.x, y:b.y - 26 };
-  shooter._fireDone = done;
-  shooter._fireTarget = target;
-  setTimeout(() => {                       // после короткой анимации прицеливания — залп
-    if (shooter.hp <= 0) {                 // стрелок мог быть уничтожен в ответ — приказ отменён
-      const cb = shooter._fireDone; shooter._fireDone = null;
-      if (cb) cb(); return;
+/* ---曼хэттенская зона огня оружия: все клетки «до куда дотягивается ствол».
+       Подсвечиваются оранжевой сеткой и на полигоне, и в бою. --- */
+function computeFireCells(set, unit) {
+  set.clear();
+  if (!unit || unit.fireRange <= 0) return;
+  for (let dy=-unit.fireRange; dy<=unit.fireRange; dy++)
+    for (let dx=-unit.fireRange; dx<=unit.fireRange; dx++) {
+      const d = Math.abs(dx)+Math.abs(dy);
+      if (d === 0 || d > unit.fireRange) continue;
+      const gx = unit.gx+dx, gy = unit.gy+dy;
+      if (gx<0||gy<0||gx>=BT_MAP||gy>=BT_MAP) continue;
+      set.add(gy*BT_MAP+gx);
     }
-    shooter.anim.phase = "fire";
-    shooter.anim.recoil = 1;               // отдача гаснет в render-цикле
-    spawnTracer(shooter, target);
-    applyShotDamage(shooter, target);
-  }, 420);
-}
-function applyShotDamage(shooter, target) {
-  const isPlayer = shooter.team === "player";
-  const raw = isPlayer ? shooter.power : shooter.dmg;
-  const variance = 0.8 + Math.random()*0.4;
-  let dmg = Math.max(1, Math.round(raw * variance - target.armor));
-  /* тяжёлый корпус игрока держит удар лучше: снижение по классу торса */
-  if (!isPlayer && target === btPlayer) dmg = Math.max(1, dmg - loadout.torso*3);
-  if (Math.random() < 0.12) { dmg = Math.round(dmg*1.8); btlLog(`КРИТ по ${target.name}!`, "kill"); }
-  target.hp = Math.max(0, target.hp - dmg);
-  target.hitFlash = 1;                     // белая вспышка попадания (гаснет в рендере)
-  btlLog(`${shooter.name} → ${target.name}: −${dmg} ХП`, "dmg");
-  refreshBattleHud();
-  if (target.hp === 0) {
-    target.deadAt = performance.now();
-    spawnExplosion(target);
-    btlLog(`✖ ${target.name} УНИЧТОЖЕН`, "kill");
-  }
-}
-function checkBattleOver() {
-  const foesAlive = btUnits.some(u => u.team==="enemy" && u.hp>0);
-  if (!foesAlive) { btPhase="over"; showBanner("ПОБЕДА! СЕКТОР ЗАЧИЩЕН", "#ffd23f"); return true; }
-  if (btPlayer.hp <= 0)  { btPhase="over"; showBanner("МЕХ РАЗРУШЕН… ЭВАКУАЦИЯ", "#ff5d5d"); return true; }
-  return false;
-}
-function showBanner(text, color) {
-  const b = document.getElementById("turnBanner");
-  b.textContent = text; b.classList.remove("enemy-phase");
-  b.style.color = color; b.style.textShadow = `0 0 14px ${color}`;
-}
-function updateTurnBanner() {
-  const b = document.getElementById("turnBanner");
-  b.style.color = ""; b.style.textShadow = "";
-  if (btPhase === "player") { b.textContent = `ХОД ${btTurnNum} · ОГОНЬ ИЛИ МАНЁВР (осталось действий: ${btActingUnit ? btActingUnit.actions : 0})`; b.classList.remove("enemy-phase"); }
-  else if (btPhase === "busy") { b.textContent = "ВЫПОЛНЯЕТСЯ ПРИКАЗ…"; }
-  else if (btPhase === "enemy") { b.textContent = `ХОД ПРОТИВНИКА №${btTurnNum}`; b.classList.add("enemy-phase"); }
 }
 
-/* --- частицы: трассеры, взрывы, всплывающий урон --- */
-let fx = [];
-function spawnTracer(shooter, target) {
-  const a = isoToScreen(shooter.gx, shooter.gy), b = isoToScreen(target.gx, target.gy);
-  fx.push({ type:"tracer", x1:a.x, y1:a.y-30, x2:b.x, y2:b.y-24, t0:performance.now(), dur:260,
-            color: shooter.team==="player" ? "#7ef2e2" : "#ff8a5c" });
-  fx.push({ type:"muzzle", x:a.x+14, y:a.y-30, t0:performance.now(), dur:140 });
+/* --- единый изометрический рендерer тайлов: принимается контекст any canvas --- */
+function drawIsometricTiles(ctx, tiles, reachSet, fireSet, hoverCell, opts) {
+  opts = opts || {};
+  for (let gy=0; gy<BT_MAP; gy++) for (let gx=0; gx<BT_MAP; gx++) {
+    const { x, y } = isoToScreen(gx, gy);
+    const t = tiles ? tiles[gy][gx] : 0;
+    ctx.beginPath();
+    ctx.moveTo(x, y); ctx.lineTo(x+BT_TILE_W/2, y+BT_TILE_H/2);
+    ctx.lineTo(x, y+BT_TILE_H); ctx.lineTo(x-BT_TILE_W/2, y+BT_TILE_H/2);
+    ctx.closePath();
+    let fill = ((gx+gy)%2) ? "#1b2636" : "#16202e";
+    if (t===2) fill = "#234028";                                  // радиоактивная лужа
+    /* оранжевая сетка зоны огня рисуется ПЕРВОЙ (нижний слой подсветок) */
+    if (fireSet && fireSet.has(gy*BT_MAP+gx)) fill = "rgba(255,179,71,.16)";
+    if (reachSet && reachSet.has(gy*BT_MAP+gx)) fill = "rgba(53,240,255,.22)"; // зона хода поверх
+    if (hoverCell && hoverCell.gx===gx && hoverCell.gy===gy) fill = "rgba(255,210,63,.35)";
+    ctx.fillStyle = fill; ctx.fill();
+    ctx.strokeStyle = "rgba(80,120,160,.18)"; ctx.stroke();
+    /* тонкая штриховка зоны огня на пустых клетках (чтобы сетка была заметна) */
+    if (fireSet && fireSet.has(gy*BT_MAP+gx) && !(reachSet && reachSet.has(gy*BT_MAP+gx))) {
+      ctx.strokeStyle = "rgba(255,179,71,.35)"; ctx.lineWidth = 1;
+      ctx.beginPath(); ctx.moveTo(x-BT_TILE_W/4, y+BT_TILE_H/2); ctx.lineTo(x, y+BT_TILE_H/4+1);
+      ctx.moveTo(x, y+BT_TILE_H*0.75); ctx.lineTo(x+BT_TILE_W/4, y+BT_TILE_H/2); ctx.stroke();
+      ctx.lineWidth = 1;
+    }
+    if (t===1) {                                      // обломок здания — «коробка» сбоку-сверху
+      const h = 22;
+      ctx.fillStyle = "#2c3a4e";
+      ctx.beginPath();
+      ctx.moveTo(x-BT_TILE_W/2, y+BT_TILE_H/2); ctx.lineTo(x, y+BT_TILE_H);
+      ctx.lineTo(x, y+BT_TILE_H-h); ctx.lineTo(x-BT_TILE_W/2, y+BT_TILE_H/2-h);
+      ctx.closePath(); ctx.fill();
+      ctx.fillStyle = "#3a4c66";
+      ctx.beginPath();
+      ctx.moveTo(x, y+BT_TILE_H); ctx.lineTo(x+BT_TILE_W/2, y+BT_TILE_H/2);
+      ctx.lineTo(x+BT_TILE_W/2, y+BT_TILE_H/2-h); ctx.lineTo(x, y+BT_TILE_H-h);
+      ctx.closePath(); ctx.fill();
+      ctx.fillStyle = "#506a8c";
+      ctx.beginPath();
+      ctx.moveTo(x, y-h); ctx.lineTo(x+BT_TILE_W/2, y+BT_TILE_H/2-h);
+      ctx.lineTo(x, y+BT_TILE_H-h); ctx.lineTo(x-BT_TILE_W/2, y+BT_TILE_H/2-h);
+      ctx.closePath(); ctx.fill();
+    }
+  }
 }
-function spawnExplosion(unit) {
-  const p = isoToScreen(unit.gx, unit.gy);
+
+/* --- эффекты (трассеры, взрывы): общий пул для обоих полотен --- */
+let fx = [];
+function spawnTracerAt(x1,y1,x2,y2,color) {
+  fx.push({ type:"tracer", x1, y1, x2, y2, t0:performance.now(), dur:260, color });
+  fx.push({ type:"muzzle", x:x1+14, y:y1, t0:performance.now(), dur:140 });
+}
+function spawnExplosionAt(x, y) {
   for (let i=0;i<16;i++) {
     const ang = Math.random()*Math.PI*2, sp = 0.6+Math.random()*2.4;
-    fx.push({ type:"spark", x:p.x, y:p.y-26, vx:Math.cos(ang)*sp, vy:Math.sin(ang)*sp-1,
+    fx.push({ type:"spark", x, y:y-26, vx:Math.cos(ang)*sp, vy:Math.sin(ang)*sp-1,
               t0:performance.now(), dur:600+Math.random()*400,
               color: ["#ffd23f","#ff8a5c","#ff4d9d"][i%3] });
   }
-  fx.push({ type:"ring", x:p.x, y:p.y-20, t0:performance.now(), dur:520 });
+  fx.push({ type:"ring", x, y:y-20, t0:performance.now(), dur:520 });
 }
-
-/* ============================================================
-   РЕНДЕР ПОЛЯ БОЯ (requestAnimationFrame): тайлы, юниты,
-   подсветки, эффекты, анимация походки и отдачи оружия
-   ============================================================ */
-function drawIsometricGround() {
-  for (let gy=0; gy<BT_MAP; gy++) for (let gx=0; gx<BT_MAP; gx++) {
-    const { x, y } = isoToScreen(gx, gy);
-    const t = btTiles[gy][gx];
-    btCtx.beginPath();
-    btCtx.moveTo(x, y); btCtx.lineTo(x+BT_TILE_W/2, y+BT_TILE_H/2);
-    btCtx.lineTo(x, y+BT_TILE_H); btCtx.lineTo(x-BT_TILE_W/2, y+BT_TILE_H/2);
-    btCtx.closePath();
-    let fill = ((gx+gy)%2) ? "#1b2636" : "#16202e";
-    if (t===2) fill = "#234028";                      // радиоактивная лужа
-    if (btReachCells.has(gy*BT_MAP+gx)) fill = "rgba(53,240,255,.22)"; // куда можно дойти
-    if (btHover && btHover.gx===gx && btHover.gy===gy) fill = "rgba(255,210,63,.35)";
-    btCtx.fillStyle = fill; btCtx.fill();
-    btCtx.strokeStyle = "rgba(80,120,160,.18)"; btCtx.stroke();
-    if (t===1) {                                      // обломок здания — «коробка» сбоку-сверху
-      const h = 22;
-      btCtx.fillStyle = "#2c3a4e";
-      btCtx.beginPath();
-      btCtx.moveTo(x-BT_TILE_W/2, y+BT_TILE_H/2); btCtx.lineTo(x, y+BT_TILE_H);
-      btCtx.lineTo(x, y+BT_TILE_H-h); btCtx.lineTo(x-BT_TILE_W/2, y+BT_TILE_H/2-h);
-      btCtx.closePath(); btCtx.fill();
-      btCtx.fillStyle = "#3a4c66";
-      btCtx.beginPath();
-      btCtx.moveTo(x, y+BT_TILE_H); btCtx.lineTo(x+BT_TILE_W/2, y+BT_TILE_H/2);
-      btCtx.lineTo(x+BT_TILE_W/2, y+BT_TILE_H/2-h); btCtx.lineTo(x, y+BT_TILE_H-h);
-      btCtx.closePath(); btCtx.fill();
-      btCtx.fillStyle = "#506a8c";
-      btCtx.beginPath();
-      btCtx.moveTo(x, y-h); btCtx.lineTo(x+BT_TILE_W/2, y+BT_TILE_H/2-h);
-      btCtx.lineTo(x, y+BT_TILE_H-h); btCtx.lineTo(x-BT_TILE_W/2, y+BT_TILE_H/2-h);
-      btCtx.closePath(); btCtx.fill();
-    }
-  }
-}
-
-/* Отрисовка меха в изометрии: вид сверху-сбоку.
-   Параметры: scale — размер по классу, colors — палитра,
-   walkPhase — фаза шага для анимации ног, aim/fire — анимация оружия. */
-function drawBattleMech(u, sx, sy) {
-  const C = MECH_COLORS[u.cls];
-  const scale = [0.62, 0.85, 1.12][u.cls];
-  const w = 34*scale, h = 46*scale;
-  const anim = u.anim;
+function updateAndDrawFx(ctx) {
   const now = performance.now();
-  /* Походка: ноги ходят в противофазе, корпус покачивается (hop) */
-  let legL = 0, legR = 0, hop = 0;
-  if (anim.phase === "walk") {
-    const ph = now/anim.stepDur*Math.PI;
-    legL = Math.sin(ph)*5*scale; legR = -legL;
-    hop  = Math.abs(Math.sin(ph))*2.4*scale;
-  } else {
-    const idle = Math.sin(now/700 + anim.bob)*1.2;
-    legL = idle*0.3; legR = -idle*0.3; hop = idle*0.4;
-  }
-  /* Отдача оружия: ствол «отъезжает» назад и гаснет за 200 мс */
-  if (anim.recoil > 0) anim.recoil = Math.max(0, anim.recoil - 0.06);
-  const rec = anim.recoil * 7 * scale;
-  /* Прицеливание: плавный доворот ствола к цели */
-  let want = 0;
-  if (anim.phase === "aim" || anim.phase === "fire") {
-    want = Math.atan2(anim.aimTarget.y - (sy-h), anim.aimTarget.x - sx);
-    anim.aimAng += (want - anim.aimAng) * 0.35;
-    if (anim.phase === "aim" && Math.abs(want-anim.aimAng) < 0.08) { /* ждём залпа из логики */ }
-  } else anim.aimAng *= 0.9;
-  const facingLeft = (anim.phase==="aim"||anim.phase==="fire") ? Math.cos(anim.aimAng) < 0
-                   : (u.team==="enemy");
-  btCtx.save();                            // сохраняем состояние ради зеркалирования спрайта
-  if (facingLeft) { btCtx.translate(sx, 0); btCtx.scale(-1, 1); btCtx.translate(-sx, 0); }
-  const topY = sy - h - 18*scale - hop;
-  /* тень */
-  btCtx.fillStyle = "rgba(0,0,0,.35)";
-  btCtx.beginPath(); btCtx.ellipse(sx, sy+2, w*0.9, w*0.36, 0, 0, Math.PI*2); btCtx.fill();
-  /* ноги */
-  btCtx.fillStyle = C.dark;
-  btCtx.fillRect(sx-w*0.42, sy-16*scale+legL, w*0.3, 16*scale);
-  btCtx.fillRect(sx+w*0.12, sy-16*scale+legR, w*0.3, 16*scale);
-  /* ступни */
-  btCtx.fillStyle = "#222c3a";
-  btCtx.fillRect(sx-w*0.5, sy-3+legL, w*0.44, 4);
-  btCtx.fillRect(sx+w*0.06, sy-3+legR, w*0.44, 4);
-  /* торс */
-  btCtx.fillStyle = u.hitFlash > 0 ? "#ffffff" : C.main;
-  roundRectBt(sx-w/2, topY+10*scale, w, h*0.62, 5);
-  /* плечи */
-  btCtx.fillStyle = C.dark;
-  btCtx.fillRect(sx-w*0.72, topY+10*scale, w*0.28, h*0.3);
-  btCtx.fillRect(sx+w*0.44, topY+10*scale, w*0.28, h*0.3);
-  /* кабина-«визор» в аниме-стиле */
-  btCtx.fillStyle = "#0d1420";
-  roundRectBt(sx-w*0.3, topY+2*scale, w*0.6, 12*scale, 4);
-  btCtx.fillStyle = u.team==="player" ? "#35f0ff" : "#ff5d5d";
-  btCtx.fillRect(sx-w*0.22, topY+6*scale, w*0.44, 3);
-  /* ОРУЖИЕ: рука-пушка, разворачивается к цели, с отдачей и вспышкой */
-  const gunLen = [16,22,30][u.weapon] * scale;
-  const ang = anim.aimAng;
-  const shX = sx + w*0.5, shY = topY + 18*scale;
-  btCtx.save();
-  btCtx.translate(shX - Math.cos(ang)*rec, shY - Math.sin(ang)*rec);
-  btCtx.rotate(ang);
-  btCtx.fillStyle = "#39465c"; btCtx.fillRect(0, -3*scale, gunLen, 6*scale);
-  btCtx.fillStyle = C.accent; btCtx.fillRect(gunLen-4*scale, -2*scale, 4*scale, 4*scale);
-  if (anim.recoil > 0.55) {                        // дульная вспышка в первые кадры залпа
-    btCtx.fillStyle = "rgba(255,220,120,.9)";
-    btCtx.beginPath(); btCtx.arc(gunLen+4*scale, 0, 7*scale*anim.recoil, 0, Math.PI*2); btCtx.fill();
-  }
-  btCtx.restore();                         // конец save/restore оружия (поворот ствола)
-  /* ...здесь можно вставить свой спрайт: if (SPRITE_IMG.complete) { btCtx.drawImage(SPRITE_IMG, sx-30, topY, 60, 70); } */
-  btCtx.restore();                         // конец зеркалирования юнита
-  /* полоска ХП над юнитом */
-  const bw = 40;
-  btCtx.fillStyle = "rgba(0,0,0,.55)"; btCtx.fillRect(sx-bw/2, topY-10, bw, 5);
-  btCtx.fillStyle = u.team==="player" ? "#3ad6c4" : "#ff5d5d";
-  btCtx.fillRect(sx-bw/2, topY-10, bw*(u.hp/u.maxHp), 5);
-  /* имя при наведении/выборе */
-  if (u === btActingUnit || (btHoverU === u)) {
-    btCtx.font = "10px monospace"; btCtx.textAlign = "center";
-    btCtx.fillStyle = "#cfe3f5"; btCtx.fillText(u.name, sx, topY-14);
-  }
-}
-/* поддержка зеркального отражения спрайта реализована через btCtx.save/restore внутри drawBattleMech */
-function roundRectBt(x,y,w,h,r){ btCtx.beginPath(); btCtx.moveTo(x+r,y); btCtx.arcTo(x+w,y,x+w,y+h,r); btCtx.arcTo(x+w,y+h,x,y+h,r); btCtx.arcTo(x,y+h,x,y,r); btCtx.arcTo(x,y,x+w,y,r); btCtx.closePath(); btCtx.fill(); }
-
-/* Позиция юнита между кадрами движения (интерполяция по пути) */
-function unitPixelPos(u) {
-  let gx = u.gx, gy = u.gy;
-  if (u.anim.phase === "walk" && u.anim.walkPath) {
-    const p = u.anim.walkPath;
-    const i = Math.min(u.anim.walkSeg, p.length-2);
-    const t = Math.min(1, u.anim.walkT);
-    gx = p[i].gx + (p[i+1].gx - p[i].gx) * t;
-    gy = p[i].gy + (p[i+1].gy - p[i].gy) * t;
-  }
-  return isoToScreen(gx, gy);
+  fx = fx.filter(f => now - f.t0 < f.dur);
+  fx.forEach(f => {
+    const k = (now - f.t0) / f.dur;
+    if (f.type==="tracer") {
+      ctx.strokeStyle = f.color; ctx.lineWidth = 2.5; ctx.globalAlpha = 1-k;
+      ctx.beginPath();
+      const ex = f.x1+(f.x2-f.x1)*Math.min(1,k*2), ey = f.y1+(f.y2-f.y1)*Math.min(1,k*2);
+      ctx.moveTo(f.x1,f.y1); ctx.lineTo(ex,ey); ctx.stroke(); ctx.globalAlpha = 1;
+    } else if (f.type==="muzzle") {
+      ctx.fillStyle = `rgba(255,230,140,${1-k})`;
+      ctx.beginPath(); ctx.arc(f.x,f.y,10*(1-k)+3,0,Math.PI*2); ctx.fill();
+    } else if (f.type==="spark") {
+      ctx.fillStyle = f.color; ctx.globalAlpha = 1-k;
+      ctx.fillRect(f.x+f.vx*k*60, f.y+f.vy*k*60+k*k*30, 3, 3); ctx.globalAlpha = 1;
+    } else if (f.type==="ring") {
+      ctx.strokeStyle = `rgba(255,140,80,${1-k})`; ctx.lineWidth = 3;
+      ctx.beginPath(); ctx.ellipse(f.x,f.y,60*k,30*k,0,0,Math.PI*2); ctx.stroke();
+    }
+  });
 }
 
-let btHoverU = null;
-function renderBattle(ts) {
-  if (!document.getElementById("screenBattle").classList.contains("visible")) { requestAnimationFrame(renderBattle); return; }
-  btCtx.clearRect(0, 0, btCanvas.width, btCanvas.height);
-  /* фон-градиент постапокалиптического неба над полигоном */
-  const g = btCtx.createLinearGradient(0,0,0,btCanvas.height);
-  g.addColorStop(0,"#0b1322"); g.addColorStop(.5,"#0d1726"); g.addColorStop(1,"#0a1018");
-  btCtx.fillStyle = g; btCtx.fillRect(0,0,btCanvas.width,btCanvas.height);
-  drawIsometricGround();
-
-  /* продвижение анимации ходьбы: шаг за шагом по клеткам пути */
-  btUnits.forEach(u => {
+/* --- продвижение анимации ходьбы и залпа (общая для боя и полигона).
+       Вызывается каждый кадр из render-циклов с своим списком юнитов. --- */
+function stepUnitsAnim(units) {
+  units.forEach(u => {
     if (u.hp<=0 && !u.deadAt) return;
     const a = u.anim;
     if (a.phase === "walk" && a.walkPath) {
@@ -1840,48 +1839,397 @@ function renderBattle(ts) {
       if (cb) cb();
     }
     if (u.hitFlash > 0) u.hitFlash -= 0.08;
+    if (u.armShake > 0) u.armShake -= 0.02; // дрожание повреждённой руки-оружия гаснет со временем
   });
-
-  /* сортировка по глубине (yx) — юниты ближе к «переднему плану» рисуются поверх */
-  const sorted = [...btUnits].filter(u=>u.hp>0 || u.deadAt).sort((a,b)=>{
-    const pa=isoToScreen(a.gx,a.gy), pb=isoToScreen(b.gx,b.gy);
-    return (pa.y - pb.y) || (pa.x - pb.x);
-  });
-  sorted.forEach(u => {
-    if (u.hp <= 0) {                                 // дымка уничтоженного меха
-      const p = isoToScreen(u.gx,u.gy);
-      btCtx.globalAlpha = 0.25; btCtx.fillStyle = "#555";
-      btCtx.fillRect(p.x-14, p.y-24, 28, 20); btCtx.globalAlpha = 1;
-      return;
-    }
-    const p = unitPixelPos(u);
-    drawBattleMech(u, p.x, p.y + BT_TILE_H/2);
-  });
-
-  /* эффекты: трассеры, вспышки, искры, кольца взрывов */
-  const now = performance.now();
-  fx = fx.filter(f => now - f.t0 < f.dur);
-  fx.forEach(f => {
-    const k = (now - f.t0) / f.dur;
-    if (f.type==="tracer") {
-      btCtx.strokeStyle = f.color; btCtx.lineWidth = 2.5; btCtx.globalAlpha = 1-k;
-      btCtx.beginPath();
-      const ex = f.x1+(f.x2-f.x1)*Math.min(1,k*2), ey = f.y1+(f.y2-f.y1)*Math.min(1,k*2);
-      btCtx.moveTo(f.x1,f.y1); btCtx.lineTo(ex,ey); btCtx.stroke(); btCtx.globalAlpha = 1;
-    } else if (f.type==="muzzle") {
-      btCtx.fillStyle = `rgba(255,230,140,${1-k})`;
-      btCtx.beginPath(); btCtx.arc(f.x,f.y,10*(1-k)+3,0,Math.PI*2); btCtx.fill();
-    } else if (f.type==="spark") {
-      btCtx.fillStyle = f.color; btCtx.globalAlpha = 1-k;
-      btCtx.fillRect(f.x+f.vx*k*60, f.y+f.vy*k*60+k*k*30, 3, 3); btCtx.globalAlpha = 1;
-    } else if (f.type==="ring") {
-      btCtx.strokeStyle = `rgba(255,140,80,${1-k})`; btCtx.lineWidth = 3;
-      btCtx.beginPath(); btCtx.ellipse(f.x,f.y,60*k,30*k,0,0,Math.PI*2); btCtx.stroke();
-    }
-  });
-  requestAnimationFrame(renderBattle);
 }
-requestAnimationFrame(renderBattle);
+
+/* Позиция юнита между кадрами движения (интерполяция по пути) */
+function unitPixelPos(u) {
+  let gx = u.gx, gy = u.gy;
+  if (u.anim.phase === "walk" && u.anim.walkPath) {
+    const p = u.anim.walkPath;
+    const i = Math.min(u.anim.walkSeg, p.length-2);
+    const t = Math.min(1, u.anim.walkT);
+    gx = p[i].gx + (p[i+1].gx - p[i].gx) * t;
+    gy = p[i].gy + (p[i+1].gy - p[i].gy) * t;
+  }
+  return isoToScreen(gx, gy);
+}
+
+/* Отрисовка меха в изометрии: вид сверху-сбоку (ОБЩАЯ функция для
+   поля боя и полигона — ctx передаётся, чтобы рисовать на любом canvas).
+   Параметры: scale — размер по классу, colors — палитра,
+   walkPhase — фаза шага для анимации ног, aim/fire — анимация оружия.
+   ПОВРЕЖДЁННЫЕ УЗЛЫ: u.partHp.{legs,rArm,lArm,torso} < 60% дают тряску
+   походки (ноги) и дрожащее прицеливание (рука) — движение и огонь
+   ухудшаются визуально и в формулах урона/хода. */
+function drawMechIso(ctx, u, sx, sy, isActive, isHovered) {
+  const C = MECH_COLORS[u.cls];
+  const scale = [0.62, 0.85, 1.12][u.cls];
+  const w = 34*scale, h = 46*scale;
+  const anim = u.anim;
+  const now = performance.now();
+  const legsHurt = u.partHp ? (u.partHp.legs.pct < 0.6) : false;
+  const armHurt  = u.partHp ? (u.partHp.rArm.pct < 0.6) : false;
+  /* Походка: ноги ходят в противофазе, корпус покачивается (hop).
+     Повреждённые ноги — шарканье и перекос (перемещение хуже). */
+  let legL = 0, legR = 0, hop = 0, lean = 0;
+  if (anim.phase === "walk") {
+    const ph = now/anim.stepDur*Math.PI;
+    legL = Math.sin(ph)*5*scale; legR = -legL;
+    hop  = Math.abs(Math.sin(ph))*2.4*scale;
+    if (legsHurt) { lean = Math.sin(ph*0.5)*3*scale; legL *= 0.5; legR *= 0.5; } // волочит шаги
+  } else {
+    const idle = Math.sin(now/700 + anim.bob)*1.2;
+    legL = idle*0.3; legR = -idle*0.3; hop = idle*0.4;
+    if (legsHurt) lean = Math.sin(now/300)*1.6*scale; // стоит — «проседает» на битое шасси
+  }
+  /* Отдача оружия: ствол «отъезжает» назад и гаснет за 200 мс */
+  if (anim.recoil > 0) anim.recoil = Math.max(0, anim.recoil - 0.06);
+  const rec = anim.recoil * 7 * scale;
+  /* Прицеливание: плавный доворот ствола к цели; повреждённая рука — дрожь */
+  let want = 0;
+  if (anim.phase === "aim" || anim.phase === "fire") {
+    want = Math.atan2(anim.aimTarget.y - (sy-h), anim.aimTarget.x - sx);
+    anim.aimAng += (want - anim.aimAng) * 0.35;
+    if (armHurt) want += Math.sin(now/45)*0.12;         // ствол трясёт — точность ниже
+  } else anim.aimAng *= 0.9;
+  const facingLeft = (anim.phase==="aim"||anim.phase==="fire") ? Math.cos(anim.aimAng) < 0
+                   : (u.team==="enemy");
+  ctx.save();                            // сохраняем состояние ради зеркалирования спрайта
+  if (lean) { ctx.translate(sx, sy); ctx.rotate(lean*0.01); ctx.translate(-sx, -sy); }
+  if (facingLeft) { ctx.translate(sx, 0); ctx.scale(-1, 1); ctx.translate(-sx, 0); }
+  const topY = sy - h - 18*scale - hop;
+  /* тень */
+  ctx.fillStyle = "rgba(0,0,0,.35)";
+  ctx.beginPath(); ctx.ellipse(sx, sy+2, w*0.9, w*0.36, 0, 0, Math.PI*2); ctx.fill();
+  /* ноги (битые — красноватые искры-повреждения) */
+  ctx.fillStyle = legsHurt ? "#5a3a3a" : C.dark;
+  ctx.fillRect(sx-w*0.42, sy-16*scale+legL, w*0.3, 16*scale);
+  ctx.fillRect(sx+w*0.12, sy-16*scale+legR, w*0.3, 16*scale);
+  /* ступни */
+  ctx.fillStyle = "#222c3a";
+  ctx.fillRect(sx-w*0.5, sy-3+legL, w*0.44, 4);
+  ctx.fillRect(sx+w*0.06, sy-3+legR, w*0.44, 4);
+  /* торс */
+  ctx.fillStyle = u.hitFlash > 0 ? "#ffffff" : C.main;
+  roundRectCtx(ctx, sx-w/2, topY+10*scale, w, h*0.62, 5);
+  /* плечи: правый наплечник темнее, если рука-оружие пробита */
+  ctx.fillStyle = armHurt ? "#6e3b3b" : C.dark;
+  ctx.fillRect(sx-w*0.72, topY+10*scale, w*0.28, h*0.3);
+  ctx.fillRect(sx+w*0.44, topY+10*scale, w*0.28, h*0.3);
+  /* кабина-«визор» в аниме-стиле */
+  ctx.fillStyle = "#0d1420";
+  roundRectCtx(ctx, sx-w*0.3, topY+2*scale, w*0.6, 12*scale, 4);
+  ctx.fillStyle = u.team==="player" ? "#35f0ff" : "#ff5d5d";
+  ctx.fillRect(sx-w*0.22, topY+6*scale, w*0.44, 3);
+  /* ОРУЖИЕ: рука-пушка, разворачивается к цели, с отдачей и вспышкой */
+  const gunLen = [16,22,30][u.weapon] * scale;
+  const ang = anim.aimAng;
+  const shX = sx + w*0.5, shY = topY + 18*scale;
+  ctx.save();
+  ctx.translate(shX - Math.cos(ang)*rec, shY - Math.sin(ang)*rec);
+  ctx.rotate(ang);
+  ctx.fillStyle = armHurt ? "#7a4a4a" : "#39465c"; ctx.fillRect(0, -3*scale, gunLen, 6*scale);
+  ctx.fillStyle = C.accent; ctx.fillRect(gunLen-4*scale, -2*scale, 4*scale, 4*scale);
+  if (anim.recoil > 0.55) {                        // дульная вспышка в первые кадры залпа
+    ctx.fillStyle = "rgba(255,220,120,.9)";
+    ctx.beginPath(); ctx.arc(gunLen+4*scale, 0, 7*scale*anim.recoil, 0, Math.PI*2); ctx.fill();
+  }
+  ctx.restore();                         // конец save/restore оружия (поворот ствола)
+  /* ...здесь можно вставить свой спрайт: if (SPRITE_IMG.complete) { ctx.drawImage(SPRITE_IMG, sx-30, topY, 60, 70); } */
+  ctx.restore();                         // конец зеркалирования юнита
+  /* полоска ХП над юнитом */
+  const bw = 40;
+  ctx.fillStyle = "rgba(0,0,0,.55)"; ctx.fillRect(sx-bw/2, topY-10, bw, 5);
+  ctx.fillStyle = u.team==="player" ? "#3ad6c4" : "#ff5d5d";
+  ctx.fillRect(sx-bw/2, topY-10, bw*(u.hp/u.maxHp), 5);
+  /* индикатор активного юнита / имени при наведении */
+  if (isActive) {
+    ctx.strokeStyle = "#ffd23f"; ctx.lineWidth = 2;
+    ctx.beginPath(); ctx.ellipse(sx, sy+2, w*1.05, w*0.5, 0, 0, Math.PI*2); ctx.stroke();
+    ctx.lineWidth = 1;
+  }
+  if (isActive || isHovered) {
+    ctx.font = "10px monospace"; ctx.textAlign = "center";
+    ctx.fillStyle = "#cfe3f5"; ctx.fillText(u.name, sx, topY-14);
+  }
+}
+function roundRectCtx(ctx,x,y,w,h,r){ ctx.beginPath(); ctx.moveTo(x+r,y); ctx.arcTo(x+w,y,x+w,y+h,r); ctx.arcTo(x+w,y+h,x,y+h,r); ctx.arcTo(x,y+h,x,y,r); ctx.arcTo(x,y,x+w,y,r); ctx.closePath(); ctx.fill(); }
+function roundRectBt(x,y,w,h,r){ roundRectCtx(btCtx,x,y,w,h,r); }
+
+/* ============================================================
+   ПОЛЕ БОЯ: ПОШАГОВЫЙ БОЙ НА СЕТКЕ 16×16
+   ============================================================ */
+const btCanvas = document.getElementById("battleCanvas");
+const btCtx = btCanvas.getContext("2d");
+
+/* --- тайлы карты: 0 = пол, 1 = стена (обломок), 2 = радиоактивная лужа (нельзя идти) --- */
+let btTiles = null;
+function genMap() {
+  btTiles = Array.from({ length: BT_MAP }, () => Array(BT_MAP).fill(0));
+  /* детерминированные декорации-стены, чтобы проход был всегда возможен */
+  const walls = [[2,3],[3,3],[2,4],[7,1],[8,1],[12,2],[12,3],[13,6],[14,6],[4,8],[5,8],[10,9],[10,10],[2,12],[3,12],[8,13],[9,13],[13,11],[13,12]];
+  walls.forEach(([x,y]) => btTiles[y][x] = 1);
+  const puddles = [[6,5],[11,4],[4,11],[12,13],[9,7]];
+  puddles.forEach(([x,y]) => btTiles[y][x] = 2);
+}
+
+/* --- юниты боя ---
+   speed определяет ЧИСЛО ДЕЙСТВИЙ за ход (быстрый лёгкий мех — 2 действия),
+   move — сколько клеток проходит за одно действие перемещения */
+let btUnits = [];
+let btPlayer = null;
+function buildBattleUnits() {
+  const t = totalStats();
+  btUnits = [];
+  btPlayer = {
+    id:"player", name:"ВАШ МЕХ", team:"player", cls:loadout.torso, weapon:loadout.weapon,
+    gx:2, gy:2, hp:t.hp, maxHp:t.hp, power:t.power, armor:Math.round(t.weight*3),
+    move: Math.max(2, Math.min(6, Math.round(t.speed/4))),
+    fireRange: 5 + (2 - loadout.torso),             // лёгкая сборка стреляет дальше
+    actions: t.speed >= 20 ? 2 : 1,                 // скорость = больше действий за ход
+    partHp: makePartHp(t),                          // узлы цехи — повреждения влияют на бой
+    anim:{ phase:"idle", walkPath:null, walkT:0, aimAng:0, recoil:0, bob:Math.random()*6 },
+  };
+  btUnits.push(btPlayer);
+  /* три вражеских меха: лёгкий / средний / тяжёлый — цвета и размеры различаются */
+  const enemies = [
+    { id:"e_light",  name:"РАЗВЕДЧИК MK-I",  cls:0, gx:13, gy:4,  hp:120, dmg:10, armor:2, move:5, actions:2, fireRange:5 },
+    { id:"e_medium", name:"ШТУРМОВИК MK-II", cls:1, gx:12, gy:9,  hp:220, dmg:16, armor:6, move:3, actions:1, fireRange:5 },
+    { id:"e_heavy",  name:"СУДЬЯ MK-III",    cls:2, gx:8,  gy:13, hp:420, dmg:26, armor:14, move:2, actions:1, fireRange:6 },
+  ];
+  enemies.forEach(e => btUnits.push({ ...e, team:"enemy", maxHp:e.hp, weapon:1+e.cls,
+    partHp: makePartHp({hp:e.hp}),
+    anim:{ phase:"idle", walkPath:null, walkT:0, aimAng:0, recoil:0, bob:Math.random()*6 } }));
+}
+
+/* --- состояние хода --- */
+let btPhase = "player";        // player | enemy | busy (идёт анимация) | over
+let btActingUnit = null;       // юнит игрока, ожидающий действия (в бою он один)
+let btReachCells = new Set();  // куда можно дойти за действие (подсветка как в F1/D2)
+let btFireCells = new Set();   // оранжевая сетка: куда достаёт оружие
+let btHover = null;            // клетка под курсором
+let btTurnNum = 1;
+
+function computeReach(unit) {
+  computeReachInto(btReachCells, unit, btUnits, btTiles);
+  computeFireCells(btFireCells, unit);
+}
+
+function beginPlayerActions() {
+  btPhase = "player";
+  btActingUnit = btPlayer;
+  computeReach(btPlayer);
+  updateTurnBanner();
+  refreshBattleHud();
+}
+function endPlayerTurn() {
+  if (btPhase !== "player") return;
+  btPhase = "busy";
+  updateTurnBanner();
+  beginEnemyPhase();                     // сброс флагов _done и запуск фазы противника
+}
+
+/* Ход врагов: каждый по очереди делает движение к игроку и выстрел (если достреливает) */
+const btRef = { p:"player", tiles:null, log:(m,c)=>btlLog(m,c) }; // «переменная хода» для общих функций
+function beginEnemyPhase() {
+  btUnits.filter(u => u.team==="enemy" && u.hp>0).forEach(u => u._done = false);
+  btPhase = "enemy"; btRef.p = "enemy";
+  updateTurnBanner();
+  setTimeout(enemyTurnStep, 350);
+}
+function enemyTurnStep() {
+  const foes = btUnits.filter(u => u.team==="enemy" && u.hp>0);
+  const next = foes.find(u => !u._done);
+  if (!next) { btTurnNum++; beginPlayerActions(); return; }
+  next._done = true;
+  const dist = Math.abs(next.gx-btPlayer.gx)+Math.abs(next.gy-btPlayer.gy);
+  const range = effFireRange(next);        // тяжёлый стреляет дальше; битая рука — короче
+  if (dist <= range) {
+    /* атака: разворот ствола + залп с трассером */
+    orderFire(btRef, next, btPlayer, () => afterEnemyAction(next));
+  } else {
+    moveToward(next, btPlayer, () => afterEnemyAction(next));
+  }
+}
+function afterEnemyAction(next) {
+  if (checkBattleOver()) return;
+  setTimeout(enemyTurnStep, 300);
+}
+function moveToward(unit, target, done) {
+  /* идем к последней свободной клетке рядом с целью */
+  const cells = [[1,0],[-1,0],[0,1],[0,-1],[1,1],[1,-1],[-1,1],[-1,-1]]
+    .map(([dx,dy])=>({gx:target.gx+dx, gy:target.gy+dy}))
+    .filter(c=>walkableIn(btUnits,c.gx,c.gy,unit,btTiles))
+    .sort((a,b)=> (Math.hypot(a.gx-unit.gx,a.gy-unit.gy)) - (Math.hypot(b.gx-unit.gx,b.gy-unit.gy)));
+  const dest = cells[0];
+  if (!dest) { done(); return; }
+  startMove(btUnits, btRef, unit, dest, done);
+}
+
+/* --- приказ игрока: клик по карте --- */
+function battleClick(px, py) {
+  if (btPhase !== "player" || !btActingUnit) return;
+  const { gx, gy } = screenToIso(px, py);
+  /* клик по врагу — огонь, если в радиусе выстрела */
+  const foe = btUnits.find(u => u.team==="enemy" && u.hp>0 && u.gx===gx && u.gy===gy);
+  if (foe) {
+    const dist = Math.abs(foe.gx-btActingUnit.gx)+Math.abs(foe.gy-btActingUnit.gy);
+    const range = effFireRange(btActingUnit); // лёгкая сборка стреляет дальше; битая рука — меньше
+    if (range > 0 && dist <= range) { orderFire(btRef, btActingUnit, foe, playerActionFinished); btlLog(`Огонь по ${foe.name}!`); }
+    else if (range === 0) btlLog("Правая рука-оружие уничтожена — стрелять нечем!", "dmg");
+    else btlLog(`Цель слишком далеко (${dist} кл., максимум ${range}). Сначала сблизьтесь.`, "dmg");
+    return;
+  }
+  /* клик по доступной клетке — шаг туда (анимация движения) */
+  if (btReachCells.has(gy*BT_MAP+gx)) {
+    startMove(btUnits, btRef, btActingUnit, {gx, gy}, playerActionFinished);
+  } else {
+    btlLog("Туда не пройти за один рывок — выберите подсвеченную клетку.");
+  }
+}
+/* Действие игрока завершено: либо остаётся фаза игрока (ещё действия), либо ход врагов. */
+function playerActionFinished() {
+  if (checkBattleOver()) return;
+  btActingUnit.actions--;
+  if (btActingUnit.actions > 0) {
+    btPhase = "player"; btRef.p = "player";// возвращаем управление: осталось действие (у быстрых сборок)
+    computeReach(btActingUnit);
+    updateTurnBanner();
+  } else {
+    beginEnemyPhase();                     // действия кончились — ход противника
+  }
+}
+
+/* --- движение с АНИМАЦИЕЙ ШАГОВ МЕХА: юнит идёт по клеткам пути,
+       покадрово интерполируется, походка кодыряет (bob/шаги ног).
+       Битые ноги (partHp.legs.pct<0.6) — шаг вдвое короче и медленнее. --- */
+function effMove(unit) {
+  if (!unit.partHp) return unit.move;
+  const l = unit.partHp.legs.pct;
+  if (l <= 0) return 0;                    // ноги пробиты — мех не идёт, только стоит и стреляет
+  if (l < 0.6) return Math.max(1, Math.floor(unit.move/2));
+  if (l < 0.35) return 1;
+  return unit.move;
+}
+function startMove(list, phaseRef, unit, dest, done) {
+  /* phaseRef — ссылка на объект состояния фазы ({p:"busy"}), чтобы полигон
+     и бой использовали одну логику, но разные «переменные хода» */
+  const path = findPathIn({gx:unit.gx,gy:unit.gy}, dest, unit, list, phaseRef.tiles);
+  if (!path || !path.length) { done && done(); return false; }
+  phaseRef.p = "busy";
+  unit.anim.phase = "walk";
+  unit.anim.walkPath = [{gx:unit.gx,gy:unit.gy}, ...path];
+  unit.anim.walkSeg = 0;
+  unit.anim.walkT = 0;
+  unit._moveDone = done;
+  /* скорость шага зависит от speed-стата и целости ног: быстрые ноги перебирают чаще */
+  const hurtLimp = unit.partHp && unit.partHp.legs.pct < 0.6;
+  unit.anim.stepDur = Math.max(90, 320 - (effMove(unit)*28)) * (hurtLimp ? 1.6 : 1);
+  return true;
+}
+
+/* --- стрельба с АНИМАЦИЕЙ ОРУЖИЯ: разворот ствола к цели, отдача, дульная вспышка, трассер.
+       Повреждённая правая рука (оружие): урон × pct, шанс промаха, ниже дальность. --- */
+function effFireRange(unit) {
+  let r = unit.fireRange || 4;
+  if (unit.partHp) {
+    const a = unit.partHp.rArm.pct;
+    if (a <= 0) return 0;                  // рука-оружие уничтожена — стрелять нечем
+    if (a < 0.6) r -= 2;                   // шаткий ствол — дистанция огня падает
+  }
+  return Math.max(1, r);
+}
+function orderFire(phaseRef, shooter, target, done) {
+  phaseRef.p = "busy";
+  shooter.anim.phase = "aim";
+  const a = isoToScreen(shooter.gx, shooter.gy), b = isoToScreen(target.gx, target.gy);
+  shooter.anim.aimTarget = { x:b.x, y:b.y - 26 };
+  shooter._fireDone = done;
+  shooter._fireTarget = target;
+  setTimeout(() => {                       // после короткой анимации прицеливания — залп
+    if (shooter.hp <= 0) {                 // стрелок мог быть уничтожен в ответ — приказ отменён
+      const cb = shooter._fireDone; shooter._fireDone = null;
+      if (cb) cb(); return;
+    }
+    shooter.anim.phase = "fire";
+    shooter.anim.recoil = 1;               // отдача гаснет в render-цикле
+    spawnTracerAt(a.x+14, a.y-30, b.x, b.y-24, shooter.team==="player" ? "#7ef2e2" : "#ff8a5c");
+    applyShotDamage(shooter, target, phaseRef);
+  }, 420);
+}
+function applyShotDamage(shooter, target, phaseRef) {
+  const isPlayer = shooter.team === "player";
+  let raw = isPlayer ? shooter.power : shooter.dmg;
+  /* ПОВРЕЖДЕНИЕ ПРАВОЙ РУКИ (оружия): недобор урона и шанс пустого выстрела */
+  let missed = false;
+  if (shooter.partHp) {
+    const a = shooter.partHp.rArm.pct;
+    raw = Math.round(raw * (0.3 + 0.7*a));
+    if (a < 0.6 && Math.random() < (0.6-a)*0.5) missed = true;  // дрожащий ствол мажет
+  }
+  const variance = 0.8 + Math.random()*0.4;
+  let dmg = missed ? 0 : Math.max(1, Math.round(raw * variance - target.armor));
+  /* тяжёлый корпус игрока держит удар лучше: снижение по классу торса + щит-рука */
+  if (!isPlayer && target === btPlayer) {
+    dmg = Math.max(missed?0:1, dmg - loadout.torso*3);
+    if (target.partHp) dmg = Math.max(missed?0:1, Math.round(dmg * (1 - 0.25*target.partHp.lArm.pct))); // левая рука-щит гасит урон
+  }
+  if (!missed && Math.random() < 0.12) { dmg = Math.round(dmg*1.8); (phaseRef.log||btlLog)(`КРИТ по ${target.name}!`, "kill"); }
+  /* распределение урона по узлам мишени: попадание может выбить руку/ногу */
+  if (!missed && target.partHp) {
+    const roll = Math.random();
+    const part = roll < 0.30 ? "rArm" : roll < 0.50 ? "lArm" : roll < 0.75 ? "legs" : "torso";
+    target.partHp[part].cur = Math.max(0, target.partHp[part].cur - Math.ceil(dmg*0.6));
+    target.partHp[part].pct = target.partHp[part].cur / target.partHp[part].max;
+    if (target.partHp[part].pct <= 0) (phaseRef.log||btlLog)(`У ${target.name} ВЫВЕДЕН ИЗ СТРОЯ ${PART_NAMES[part]}!`, "warn");
+    else if (target.partHp[part].pct < 0.6) (phaseRef.log||btlLog)(`${target.name}: повреждён ${PART_NAMES[part]}`, "dmg");
+    if (target === trPlayer) refreshTrainNodes();
+    if (target === btPlayer) refreshBattleHud();
+  }
+  target.hp = Math.max(0, target.hp - dmg);
+  target.hitFlash = 1;                     // белая вспышка попадания (гаснет в рендере)
+  const lg = phaseRef.log || btlLog;
+  if (missed) lg(`${shooter.name} → ${target.name}: ПРОМАХ (бьёт повреждённая рука)`, "warn");
+  else lg(`${shooter.name} → ${target.name}: −${dmg} ХП`, "dmg");
+  if (target.hp === 0) {
+    target.deadAt = performance.now();
+    const p = isoToScreen(target.gx, target.gy);
+    spawnExplosionAt(p.x, p.y + BT_TILE_H/2);
+    lg(`✖ ${target.name} УНИЧТОЖЕН`, "kill");
+  }
+}
+const PART_NAMES = { rArm:"ПРАВАЯ РУКА (оружие)", lArm:"ЛЕВАЯ РУКА (щит)", legs:"НОГИ (шасси)", torso:"ТОРС (ядро)" };
+/* состояние узлов меха: руки и ноги портятся от попаданий и влияют на ход/огонь */
+function makePartHp(t) {
+  const hpMax = Math.max(40, Math.round((t.hp || 100)/3));
+  return {
+    rArm:{ cur:hpMax, max:hpMax, pct:1 },
+    lArm:{ cur:hpMax, max:hpMax, pct:1 },
+    legs:{ cur:hpMax, max:hpMax, pct:1 },
+    torso:{ cur:hpMax, max:hpMax, pct:1 },
+  };
+}
+
+function checkBattleOver() {
+  const foesAlive = btUnits.some(u => u.team==="enemy" && u.hp>0);
+  if (!foesAlive) { btPhase="over"; showBanner("ПОБЕДА! СЕКТОР ЗАЧИЩЕН", "#ffd23f"); return true; }
+  if (btPlayer.hp <= 0)  { btPhase="over"; showBanner("МЕХ РАЗРУШЕН… ЭВАКУАЦИЯ", "#ff5d5d"); return true; }
+  return false;
+}
+function showBanner(text, color) {
+  const b = document.getElementById("turnBanner");
+  b.textContent = text; b.classList.remove("enemy-phase");
+  b.style.color = color; b.style.textShadow = `0 0 14px ${color}`;
+}
+function updateTurnBanner() {
+  const b = document.getElementById("turnBanner");
+  b.style.color = ""; b.style.textShadow = "";
+  if (btPhase === "player") { b.textContent = `ХОД ${btTurnNum} · ОГОНЬ ИЛИ МАНЁВР (осталось действий: ${btActingUnit ? btActingUnit.actions : 0})`; b.classList.remove("enemy-phase"); }
+  else if (btPhase === "busy") { b.textContent = "ВЫПОЛНЯЕТСЯ ПРИКАЗ…"; }
+  else if (btPhase === "enemy") { b.textContent = `ХОД ПРОТИВНИКА №${btTurnNum}`; b.classList.add("enemy-phase"); }
+}
 
 /* --- HUD поля боя --- */
 function refreshBattleHud() {

@@ -1377,15 +1377,9 @@ function closeModal(id) { document.getElementById(id).classList.remove("open"); 
    «до куда стреляет»). Повреждения рук и ног влияют на зону
    хода и огонь; мишени отвечают залпом, если достреливают.
    ============================================================ */
-const trCanvas = document.getElementById("trainingCanvas");
-const trCtx = trCanvas.getContext("2d");
-let trUnits = [], trPlayer = null;
-let trReachCells = new Set(), trFireCells = new Set();
-let trHoverCell = null, trHoverU = null;
-let trAct = "idle";                          // idle | move | fire | busy | over
-let trTurn = 1;
-let trMoved = false;                         // был ли ХОД в текущем такте (порядок: ход -> атака)
-const trRef = { p:"player", tiles:null, fx:fxTrain, log:(m,c)=>trLog(m,c) };
+/* Все переменные полигона (trUnits, trPlayer, trAct, trRef...) объявлены
+   ВЫШЕ, в блоке «СОСТОЯНИЕ ОБЕИХ ИЗОМЕТРИЧЕСКИХ СЦЕН» — здесь только
+   логика. Полотно trCanvas/trCtx будут привязаны в attachCanvases(). */
 
 function trLog(msg, cls) {
   const box = document.getElementById("trLog");
@@ -1562,31 +1556,33 @@ function trPoint(ev) {
   const r = trCanvas.getBoundingClientRect();
   return { x:(ev.clientX-r.left)*(trCanvas.width/r.width), y:(ev.clientY-r.top)*(trCanvas.height/r.height) };
 }
-trCanvas.addEventListener("mousemove", ev => {
-  const p = trPoint(ev);
-  const c = screenToIso(p.x, p.y);
-  trHoverCell = (c.gx>=0&&c.gy>=0&&c.gx<BT_MAP&&c.gy<BT_MAP) ? c : null;
-  trHoverU = trUnits.find(u => u.hp>0 && u.gx===c.gx && u.gy===c.gy) || null;
-  const info = document.getElementById("trInfo");
-  if (trHoverU) {
-    const ph = trHoverU.partHp;
-    info.innerHTML = `<b>${trHoverU.name}</b><br>ХП ${trHoverU.hp}/${trHoverU.maxHp}<br>` +
-      (trHoverU.team==="enemy"
-        ? `<span style="color:#ff8a70">ЦЕЛЬ: клик в фазе АТАКИ</span><br>рука:${Math.round(ph.rArm.pct*100)}% ноги:${Math.round(ph.legs.pct*100)}%`
-        : `ход ${effMove(trHoverU)} кл · огонь до ${effFireRange(trHoverU)} кл`);
-  } else if (trHoverCell) {
-    const k = trHoverCell.gy*BT_MAP+trHoverCell.gx;
-    info.innerHTML = `Клетка [${trHoverCell.gx}, ${trHoverCell.gy}] · ` +
-      (trReachCells.has(k) ? "<span style='color:#35f0ff'>зона ХОДА</span>"
-       : trFireCells.has(k) ? "<span style='color:#ffb347'>зона ОГНЯ (дальность ствола)</span>"
-       : "вне зон");
-  }
-});
-trCanvas.addEventListener("click", ev => { const p = trPoint(ev); trainClick(p.x, p.y); });
+function attachTrainingEvents() {
+  trCanvas.addEventListener("mousemove", ev => {
+    const p = trPoint(ev);
+    const c = screenToIso(p.x, p.y);
+    trHoverCell = (c.gx>=0&&c.gy>=0&&c.gx<BT_MAP&&c.gy<BT_MAP) ? c : null;
+    trHoverU = trUnits.find(u => u.hp>0 && u.gx===c.gx && u.gy===c.gy) || null;
+    const info = document.getElementById("trInfo");
+    if (trHoverU) {
+      const ph = trHoverU.partHp;
+      info.innerHTML = `<b>${trHoverU.name}</b><br>ХП ${trHoverU.hp}/${trHoverU.maxHp}<br>` +
+        (trHoverU.team==="enemy"
+          ? `<span style="color:#ff8a70">ЦЕЛЬ: клик в фазе АТАКИ</span><br>рука:${Math.round(ph.rArm.pct*100)}% ноги:${Math.round(ph.legs.pct*100)}%`
+          : `ход ${effMove(trHoverU)} кл · огонь до ${effFireRange(trHoverU)} кл`);
+    } else if (trHoverCell) {
+      const k = trHoverCell.gy*BT_MAP+trHoverCell.gx;
+      info.innerHTML = `Клетка [${trHoverCell.gx}, ${trHoverCell.gy}] · ` +
+        (trReachCells.has(k) ? "<span style='color:#35f0ff'>зона ХОДА</span>"
+         : trFireCells.has(k) ? "<span style='color:#ffb347'>зона ОГНЯ (дальность ствола)</span>"
+         : "вне зон");
+    }
+  });
+  trCanvas.addEventListener("click", ev => { const p = trPoint(ev); trainClick(p.x, p.y); });
+}
 
 /* --- рендер полигона: та же изометрия, что и бой; мишени стоят (idle-покачивание) --- */
 function renderTraining() {
-  if (!document.getElementById("screenTraining").classList.contains("visible")) { requestAnimationFrame(renderTraining); return; }
+  if (!trCtx || !document.getElementById("screenTraining").classList.contains("visible")) { requestAnimationFrame(renderTraining); return; }
   trCtx.clearRect(0, 0, trCanvas.width, trCanvas.height);
   const g = trCtx.createLinearGradient(0,0,0,trCanvas.height);
   g.addColorStop(0,"#0b1322"); g.addColorStop(.5,"#0d1726"); g.addColorStop(1,"#0a1018");
@@ -1612,10 +1608,9 @@ function renderTraining() {
   updateAndDrawFx(trCtx, fxTrain);
   requestAnimationFrame(renderTraining);
 }
-requestAnimationFrame(renderTraining);
-/* ВАЖНО: setupTraining() вызывается ОДИН РАЗ внизу скрипта — после того,
-   как боевые переменные (btCanvas, btTiles) уже объявлены. Иначе на
-   полигоне возникала ReferenceError и весь код боя «не жил». */
+/* ВАЖНО: запуск рендера и setupTraining() — внизу скрипта, после
+   attachCanvases(): до привязки полотен trCtx === null и цикл сам
+   «спит», пока экран не готов. */
 
 /* ============================================================
    РЕНДЕР ПОЛЯ БОЯ (восстановлен после рефакторинга): тот же
@@ -1623,7 +1618,7 @@ requestAnimationFrame(renderTraining);
    подсветкой зон активного юнита.
    ============================================================ */
 function renderBattle() {
-  if (!document.getElementById("screenBattle").classList.contains("visible")) { requestAnimationFrame(renderBattle); return; }
+  if (!btCtx || !document.getElementById("screenBattle").classList.contains("visible")) { requestAnimationFrame(renderBattle); return; }
   btCtx.clearRect(0, 0, btCanvas.width, btCanvas.height);
   const g = btCtx.createLinearGradient(0,0,0,btCanvas.height);
   g.addColorStop(0,"#0a1120"); g.addColorStop(.55,"#0c1524"); g.addColorStop(1,"#090f16");
@@ -1653,7 +1648,6 @@ function renderBattle() {
   updateAndDrawFx(btCtx, fxBattle);
   requestAnimationFrame(renderBattle);
 }
-requestAnimationFrame(renderBattle);
 
 /* ============================================================
    КАРТА ГОРОДА: задания
@@ -1691,11 +1685,50 @@ function deployMech() {
 }
 
 /* --- эффекты (трассеры, взрывы): ДВА РАЗДЕЛЬНЫХ ПУЛА — по одному
-       на каждое полотно (бой и полигон), чтобы анимации залпов не
-       «перетекали» с одного экрана на другой и не сбрасывались при
-       рестарте соседнего режима. Объявлены ЗДЕСЬ, до кода полигона
+       на каждое полотно (бой и полигон). Объявлены ДО кода полигона
        и боя, которые на них ссылаются. --- */
 const fxTrain = [], fxBattle = [];
+
+/* ============================================================
+   СОСТОЯНИЕ ОБЕИХ ИЗОМЕТРИЧЕСКИХ СЦЕН (ЧИТАЕТСЯ В РАННЕЙ
+   ФАЗЕ ЗАГРУЗКИ!). Полотны #trainingCanvas и #battleCanvas
+   находятся НИЖЕ этого скрипта в разметке, поэтому getElementById
+   здесь вернул бы null («нет клеток хода и мехов»). Решение:
+   все переменные и функции движка объявляются ЗДЕСЬ, до первого
+   использования; привязка к реальным canvas выполняется позже,
+   когда они появятся в DOM (см. attachCanvases() ниже).
+   ============================================================ */
+/* --- изометрическая сетка 16×16: размеры ромба клетки --- */
+const BT_TILE_W = 52, BT_TILE_H = 26;      // ширина/высота ромба клетки
+const BT_MAP = 16;                          // карта 16 x 16 клеток
+const BATTLE_ORIGIN_X = 58;                 // вершина ромба по X (полотно 896px)
+const BATTLE_ORIGIN_Y = 70;                 // вершина ромба по Y
+
+/* --- полигон «Эхо» --- */
+let trUnits = [], trPlayer = null;
+let trReachCells = new Set(), trFireCells = new Set();
+let trHoverCell = null, trHoverU = null;
+let trAct = "idle";                         // idle | move | fire | busy | over
+let trTurn = 1;
+let trMoved = false;                        // был ли ХОД в текущем такте
+let trCanvas = null, trCtx = null;          // реальные полотна — после attachCanvases()
+
+/* --- поле боя --- */
+let btCanvas = null, btCtx = null;          // реальные полотна — после attachCanvases()
+let btTiles = null;                         // 0 = пол, 1 = завал, 2 = радиолужа
+let btUnits = [];
+let btPlayer = null;
+let btPhase = "player";                     // player | enemy | busy | over
+let btActingUnit = null;
+let btReachCells = new Set();               // голубая сетка шага
+let btFireCells = new Set();                // оранжевая сетка огня
+let btHover = null, btHoverU = null;        // клетка/юнит под курсором
+let btTurnNum = 1;
+let btBattleToken = 0;                      // «номер приказа»: отменяет отложенные анимации старого боя
+
+/* «переменные хода» для общих функций движения/огня (у каждой сцены своя) */
+const trRef = { p:"player", tiles:null, fx:fxTrain, log:(m,c)=>trLog(m,c) };
+const btRef = { p:"player", tiles:null, fx:fxBattle, log:(m,c)=>btlLog(m,c) };
 
 /* ============================================================
    ОБЩАЯ ИЗОМЕТРИЧЕСКАЯ СЕТКА 16×16 (используют её ПОЛЕ БОЯ
@@ -1709,13 +1742,8 @@ const fxTrain = [], fxBattle = [];
    загружен — рисуется процедурная графика.
    Пример: const SPRITE_IMG = new Image(); SPRITE_IMG.src = "mech.png";
    ============================================================ */
-const BT_TILE_W = 52, BT_TILE_H = 26;      // размеры ромба клетки в изометрии
-const BT_MAP = 16;                          // карта 16 x 16 клеток
-/* Вершина ромба карты на полотне. РАСЧЁТ АВТОМАТИЧЕСКИЙ: полотно 896px
-   шириной, диагональ карты = 16*52 = 832px -> отступ (896-832)/2 + 52/2 = 58.
-   По высоте: сверху 70px, снизу остаётся ~300px под силуэты мехов. */
-const BATTLE_ORIGIN_X = Math.round((document.getElementById("battleCanvas").width - BT_MAP * BT_TILE_W) / 2 + BT_TILE_W / 2);
-const BATTLE_ORIGIN_Y = 70;
+/* BT_TILE_W/BT_MAP/BATTLE_ORIGIN_* объявлены ВЫШЕ (в блоке состояния сцен),
+   чтобы быть доступными на ранней фазе загрузки скрипта. */
 
 /* --- преобразование координат: клетка -> экран (изометрия), экран -> клетка --- */
 function isoToScreen(gx, gy) {
@@ -2031,12 +2059,11 @@ function roundRectBt(x,y,w,h,r){ roundRectCtx(btCtx,x,y,w,h,r); }
 
 /* ============================================================
    ПОЛЕ БОЯ: ПОШАГОВЫЙ БОЙ НА СЕТКЕ 16×16
+   (переменные btCanvas/btCtx/btTiles/btUnits... объявлены ВЫШЕ,
+    в блоке «СОСТОЯНИЕ ОБЕИХ ИЗОМЕТРИЧЕСКИХ СЦЕН»)
    ============================================================ */
-const btCanvas = document.getElementById("battleCanvas");
-const btCtx = btCanvas.getContext("2d");
 
 /* --- тайлы карты: 0 = пол, 1 = стена (обломок), 2 = радиоактивная лужа (нельзя идти) --- */
-let btTiles = null;
 function genMap() {
   btTiles = Array.from({ length: BT_MAP }, () => Array(BT_MAP).fill(0));
   /* детерминированные декорации-стены, чтобы проход был всегда возможен */
@@ -2046,11 +2073,9 @@ function genMap() {
   puddles.forEach(([x,y]) => btTiles[y][x] = 2);
 }
 
-/* --- юниты боя ---
+/* --- юниты боя (btUnits/btPlayer объявлены ВЫШЕ) ---
    speed определяет ЧИСЛО ДЕЙСТВИЙ за ход (быстрый лёгкий мех — 2 действия),
    move — сколько клеток проходит за одно действие перемещения */
-let btUnits = [];
-let btPlayer = null;
 function buildBattleUnits() {
   const t = totalStats();
   btUnits = [];
@@ -2075,14 +2100,8 @@ function buildBattleUnits() {
     anim:{ phase:"idle", walkPath:null, walkT:0, aimAng:0, recoil:0, bob:Math.random()*6 } }));
 }
 
-/* --- состояние хода --- */
-let btPhase = "player";        // player | enemy | busy (идёт анимация) | over
-let btActingUnit = null;       // юнит игрока, ожидающий действия (в бою он один)
-let btReachCells = new Set();  // куда можно дойти за действие (подсветка как в F1/D2)
-let btFireCells = new Set();   // оранжевая сетка: куда достаёт оружие
-let btHover = null;            // клетка под курсором
-let btTurnNum = 1;
-
+/* --- состояние хода (btPhase/btActingUnit/btReachCells/btFireCells/
+       btHover/btTurnNum объявлены ВЫШЕ, в блоке состояния сцен) --- */
 function computeReach(unit) {
   computeReachInto(btReachCells, unit, btUnits, btTiles);
   computeFireCells(btFireCells, unit);
@@ -2103,7 +2122,7 @@ function endPlayerTurn() {
 }
 
 /* Ход врагов: каждый по очереди делает движение к игроку и выстрел (если достреливает) */
-const btRef = { p:"player", tiles:null, fx:fxBattle, log:(m,c)=>btlLog(m,c) }; // «переменная хода» для общих функций
+/* btRef объявлен ВЫШЕ, в блоке состояния сцен */
 function beginEnemyPhase() {
   btUnits.filter(u => u.team==="enemy" && u.hp>0).forEach(u => u._done = false);
   btPhase = "enemy"; btRef.p = "enemy";
@@ -2322,22 +2341,24 @@ function canvasPoint(ev) {
   const r = btCanvas.getBoundingClientRect();
   return { x:(ev.clientX-r.left)*(btCanvas.width/r.width), y:(ev.clientY-r.top)*(btCanvas.height/r.height) };
 }
-btCanvas.addEventListener("mousemove", ev => {
-  const p = canvasPoint(ev);
-  const c = screenToIso(p.x, p.y);
-  btHover = (c.gx>=0&&c.gy>=0&&c.gx<BT_MAP&&c.gy<BT_MAP) ? c : null;
-  btHoverU = btUnits.find(u => u.hp>0 && u.gx===c.gx && u.gy===c.gy) || null;
-  const info = document.getElementById("unitInfo");
-  if (btHoverU) {
-    info.innerHTML = `<b>${btHoverU.name}</b><br>ХП ${btHoverU.hp}/${btHoverU.maxHp} · Броня ${btHoverU.armor}<br>` +
-      (btHoverU.team==="enemy" ? "<span style='color:#ff8a70'>ЦЕЛЬ: клик — открыть огонь</span>" : "Свой мех");
-  } else if (btHover) {
-    const t = btTiles[btHover.gy][btHover.gx];
-    info.innerHTML = `Клетка [${btHover.gx}, ${btHover.gy}] · ` +
-      (t===1 ? "<b>Завал</b> — непроходим" : t===2 ? "<b>Радиолужа</b> — объезд" : btReachCells.has(btHover.gy*BT_MAP+btHover.gx) ? "Доступна для шага" : "Вне зоны шага");
-  }
-});
-btCanvas.addEventListener("click", ev => { const p = canvasPoint(ev); battleClick(p.x, p.y); });
+function attachBattleEvents() {
+  btCanvas.addEventListener("mousemove", ev => {
+    const p = canvasPoint(ev);
+    const c = screenToIso(p.x, p.y);
+    btHover = (c.gx>=0&&c.gy>=0&&c.gx<BT_MAP&&c.gy<BT_MAP) ? c : null;
+    btHoverU = btUnits.find(u => u.hp>0 && u.gx===c.gx && u.gy===c.gy) || null;
+    const info = document.getElementById("unitInfo");
+    if (btHoverU) {
+      info.innerHTML = `<b>${btHoverU.name}</b><br>ХП ${btHoverU.hp}/${btHoverU.maxHp} · Броня ${btHoverU.armor}<br>` +
+        (btHoverU.team==="enemy" ? "<span style='color:#ff8a70'>ЦЕЛЬ: клик — открыть огонь</span>" : "Свой мех");
+    } else if (btHover) {
+      const t = btTiles[btHover.gy][btHover.gx];
+      info.innerHTML = `Клетка [${btHover.gx}, ${btHover.gy}] · ` +
+        (t===1 ? "<b>Завал</b> — непроходим" : t===2 ? "<b>Радиолужа</b> — объезд" : btReachCells.has(btHover.gy*BT_MAP+btHover.gx) ? "Доступна для шага" : "Вне зоны шага");
+    }
+  });
+  btCanvas.addEventListener("click", ev => { const p = canvasPoint(ev); battleClick(p.x, p.y); });
+}
 
 /* --- кнопки и горячие клавиши --- */
 document.getElementById("btnEndTurn").onclick = () => { if (btPhase==="player") { btActingUnit.actions = 0; endPlayerTurn(); } };
@@ -2349,7 +2370,7 @@ window.addEventListener("keydown", ev => {
 });
 
 /* --- запуск/перезапуск боя (вызывается из ангара, полигона и с карты города) --- */
-let btBattleToken = 0;                   // «номер приказа»: отменяет все отложенные анимации старого боя
+/* btBattleToken объявлен ВЫШЕ, в блоке состояния сцен */
 function startBattle(missionName) {
   btBattleToken++;                       // старый бой считается недействительным
   genMap();
@@ -2361,8 +2382,30 @@ function startBattle(missionName) {
   beginPlayerActions();
   refreshBattleHud();
 }
-startBattle();      // бой развёрнут сразу (поле боя видно из навигации)
-setupTraining();    // полигон «Эхо» — после объявления всех боевых переменных
+
+/* ============================================================
+   ФИНАЛЬНАЯ ИНИЦИАЛИЗАЦИЯ — выполняется ПОСЛЕ того, как весь
+   HTML страницы (включая полотна #trainingCanvas и #battleCanvas)
+   разобран браузером. Раньше этот код жил в начале скрипта и
+   getElementById возвращал null — поэтому на поле боя и полигоне
+   «интерфейс есть, а клеток и мехов нет». Теперь:
+   1) attachCanvases() привязывает реальные полотна и контексты;
+   2) startBattle()/setupTraining() заполняют юнитами обе сцены;
+   3) запускаются циклы отрисовки requestAnimationFrame.
+   ============================================================ */
+function attachCanvases() {
+  trCanvas = document.getElementById("trainingCanvas");
+  trCtx    = trCanvas.getContext("2d");
+  btCanvas = document.getElementById("battleCanvas");
+  btCtx    = btCanvas.getContext("2d");
+  attachTrainingEvents();                // слушатели мыши полигона
+  attachBattleEvents();                  // слушатели мыши поля боя
+}
+attachCanvases();
+startBattle();                           // бой развёрнут сразу (поле боя видно из навигации)
+setupTraining();                         // полигон «Эхо» готов к тактам ХОД -> АТАКА
+requestAnimationFrame(renderBattle);     // цикл отрисовки поля боя
+requestAnimationFrame(renderTraining);   // цикл отрисовки полигона
 
 /* Первичный пересчёт и отрисовка обоих экранов */
 refreshAll();

@@ -643,6 +643,36 @@ p.screen-sub { color: #7d93ad; font-size: .85rem; margin-bottom: 20px; }
 footer {
   text-align: center; color: #4a5a70; font-size: .7rem; padding: 20px; letter-spacing: 1px;
 }
+
+/* ============================================================
+   ПОЛЕ БОЯ: изометрическая карта 16x16 (вид сверху-сбоку, как в
+   Diablo II / Fallout 1). Рендер — Canvas, анимации движения,
+   походки меха и оружия — программные (см. JS-секцию «БОЙ»).
+   ============================================================ */
+#screenBattle .battle-wrap { display:flex; gap:14px; flex-wrap:wrap; align-items:flex-start; }
+#battleCanvas {
+  background:#0a1018; border:1px solid var(--line,#2a3b52); border-radius:8px;
+  cursor:crosshair; image-rendering:auto; touch-action:manipulation;
+  max-width:100%; height:auto; box-shadow:0 0 30px rgba(0,0,0,.6) inset;
+}
+.battle-side { flex:1 1 260px; min-width:250px; display:flex; flex-direction:column; gap:12px; }
+.turn-banner {
+  text-align:center; font-weight:bold; letter-spacing:3px; padding:10px;
+  border:1px solid #2a3b52; border-radius:6px; background:rgba(10,18,28,.85);
+  color:#ffd23f; text-shadow:0 0 12px rgba(255,210,63,.5); transition:.2s;
+}
+.turn-banner.enemy-phase { color:#ff5d5d; text-shadow:0 0 12px rgba(255,93,93,.5); }
+.hpbar { position:relative; height:14px; background:#131c29; border:1px solid #33475e; border-radius:3px; overflow:hidden; }
+.hpbar i { position:absolute; left:0; top:0; bottom:0; background:linear-gradient(90deg,#3ad6c4,#7ef2e2); transition:width .3s; }
+.hpbar.low i { background:linear-gradient(90deg,#c4574a,#ff8a70); }
+.stat-line { font-size:.8rem; color:#c9d8ea; display:flex; justify-content:space-between; margin-top:4px; }
+#unitInfo { font-size:.82rem; color:#cfe3f5; line-height:1.5; min-height:74px; }
+#unitInfo b { color:#ffd23f; letter-spacing:1px; }
+#battleLog { max-height:180px; overflow-y:auto; font-family:monospace; font-size:.72rem; background:rgba(5,10,16,.8); border:1px solid #223044; padding:8px; border-radius:6px; }
+#battleLog div { padding:1px 0; color:#9fb4cc; }
+#battleLog .dmg { color:#ff8a70; } #battleLog .kill { color:#ffd23f; } #battleLog .heal { color:#7ef2e2; }
+.battle-controls button { width:100%; margin-top:8px; }
+@media (max-width:900px){ #screenBattle .battle-wrap{flex-direction:column;} }
 </style>
 </head>
 <body>
@@ -654,6 +684,7 @@ footer {
   <button class="nav-btn" data-screen="screenRoom">Комната пилота</button>
   <button class="nav-btn" data-screen="screenTraining">Тренировочный ангар</button>
   <button class="nav-btn" data-screen="screenCity">Карта города</button>
+  <button class="nav-btn" data-screen="screenBattle">Поле боя 16×16</button>
 </header>
 
 <!-- ===================== ЭКРАН 1: АНГАР ===================== -->
@@ -874,8 +905,46 @@ footer {
     <h3 id="misTitle"></h3>
     <p id="misText"></p>
     <div class="mission-actions">
-      <button class="btn-go" onclick="deployMech()">🚀 Выступить (перейти на полигон)</button>
+      <button class="btn-go" onclick="deployMech()">🚀 Выступить (перейти на поле боя)</button>
       <button class="btn-back" onclick="document.getElementById('missionPanel').classList.remove('visible')">✕ Отбой</button>
+    </div>
+  </div>
+</section>
+
+<!-- ===================== ЭКРАН 5: ПОЛЕ БОЯ (пошаговый, изометрия 16x16) ===================== -->
+<section id="screenBattle" class="screen">
+  <h2 class="screen-title">Поле боя — сектор высадки</h2>
+  <p class="screen-sub">Пошаговый бой, вид сверху-сбоку (изометрия 16×16, как в Diablo II / Fallout 1).
+     Клик по подсвеченной клетке — перемещение (анимация шагов меха). Клик по врагу — огонь (анимация оружия и трассеров).
+     Клавиши: 1–4 — выбор действия, Пробел — следующий юнит.</p>
+
+  <div class="battle-wrap">
+    <!-- Главное полотно боя. Размер внутренний фиксирован, визуально масштабируется CSS -->
+    <canvas id="battleCanvas" width="896" height="700"></canvas>
+
+    <div class="battle-side">
+      <div class="turn-banner" id="turnBanner">ХОД ИГРОКА</div>
+
+      <div class="panel" style="position:static;display:block;">
+        <h3 style="color:#ffd23f;letter-spacing:2px;margin-bottom:6px;">МЕХ ПИЛОТА</h3>
+        <div class="hpbar" id="playerHpBar"><i style="width:100%"></i></div>
+        <div class="stat-line"><span>ХП</span><span id="playerHpTxt">—</span></div>
+        <div class="stat-line"><span>Сила / Скорость</span><span id="playerPwSp">—</span></div>
+        <div class="stat-line"><span>Броня (вес)</span><span id="playerArmor">—</span></div>
+      </div>
+
+      <div class="panel" style="position:static;display:block;">
+        <h3 style="color:#35f0ff;letter-spacing:2px;margin-bottom:6px;">ИНФО</h3>
+        <div id="unitInfo">Наведите курсор на юнита или клетку.</div>
+      </div>
+
+      <div class="battle-controls">
+        <button id="btnEndTurn">⏭ Завершить ход (X)</button>
+        <button id="btnBtReset">↺ Новый бой</button>
+        <button id="btnBtHangar">🔧 В ангар</button>
+      </div>
+
+      <div id="battleLog"></div>
     </div>
   </div>
 </section>
@@ -1289,9 +1358,591 @@ function selectMission(key) {
   missionPanel.classList.add("visible");
 }
 function deployMech() {
-  goScreen("screenTraining");
-  log("БРИФИНГ ПРИНЯТ. Мех развёрнут на полигоне. Удачи, пилот.", "warn");
+  /* Выступление с карты города: разворачиваем мех на пошаговом поле боя 16x16 */
+  goScreen("screenBattle");
+  startBattle(misTitle.textContent.replace("ЗАДАЧА: ", ""));
 }
+
+/* ============================================================
+   ПОЛЕ БОЯ: ПОШАГОВЫЙ БОЙ, ИЗОМЕТРИЧЕСКАЯ КАРТА 16x16
+   (вид сверху-сбоку в стиле Diablo II / Fallout 1)
+   ------------------------------------------------------------
+   СПРАЙТЫ: мехи и враги отрисованы программно на Canvas.
+   Если вы нарисовали своих мехов на https://spritepaint.com/ —
+   загрузите PNG, замените base64-строку ниже и раскомментируйте
+   img.drawImage(...) в функции drawBattleMech(). Пока image не
+   загружен — рисуется процедурная графика.
+   Пример: const SPRITE_IMG = new Image(); SPRITE_IMG.src = "mech.png";
+   ============================================================ */
+const BT_TILE_W = 52, BT_TILE_H = 26;      // размеры ромба клетки в изометрии
+const BT_MAP = 16;                          // карта 16 x 16 клеток
+const btCanvas = document.getElementById("battleCanvas");
+const btCtx = btCanvas.getContext("2d");
+const BATTLE_ORIGIN_X = 448, BATTLE_ORIGIN_Y = 90; // вершина ромба карты на полотне
+
+/* --- тайлы карты: 0 = пол, 1 = стена (обломок), 2 = радиоактивная лужа (нельзя идти) --- */
+let btTiles = null;
+function genMap() {
+  btTiles = Array.from({ length: BT_MAP }, () => Array(BT_MAP).fill(0));
+  /* детерминированные декорации-стены, чтобы проход был всегда возможен */
+  const walls = [[2,3],[3,3],[2,4],[7,1],[8,1],[12,2],[12,3],[13,6],[14,6],[4,8],[5,8],[10,9],[10,10],[2,12],[3,12],[8,13],[9,13],[13,11],[13,12]];
+  walls.forEach(([x,y]) => btTiles[y][x] = 1);
+  const puddles = [[6,5],[11,4],[4,11],[12,13],[9,7]];
+  puddles.forEach(([x,y]) => btTiles[y][x] = 2);
+}
+
+/* --- преобразование координат: клетка -> экран (изометрия), экран -> клетка --- */
+function isoToScreen(gx, gy) {
+  return { x: BATTLE_ORIGIN_X + (gx - gy) * BT_TILE_W / 2,
+           y: BATTLE_ORIGIN_Y + (gx + gy) * BT_TILE_H / 2 };
+}
+function screenToIso(px, py) {
+  const x = px - BATTLE_ORIGIN_X, y = py - BATTLE_ORIGIN_Y;
+  const gx = Math.floor((x / (BT_TILE_W / 2) + y / (BT_TILE_H / 2)) / 2);
+  const gy = Math.floor((y / (BT_TILE_H / 2) - x / (BT_TILE_W / 2)) / 2);
+  return { gx, gy };
+}
+
+/* --- юниты боя ---
+   speed определяет ЧИСЛО ДЕЙСТВИЙ за ход (быстрый лёгкий мех — 2 действия),
+   move — сколько клеток проходит за одно действие перемещения */
+let btUnits = [];
+let btPlayer = null;
+function buildBattleUnits() {
+  const t = totalStats();
+  btUnits = [];
+  btPlayer = {
+    id:"player", name:"ВАШ МЕХ", team:"player", cls:loadout.torso, weapon:loadout.weapon,
+    gx:2, gy:2, hp:t.hp, maxHp:t.hp, power:t.power, armor:Math.round(t.weight*3),
+    move: Math.max(2, Math.min(6, Math.round(t.speed/4))),
+    actions: t.speed >= 20 ? 2 : 1,            // скорость = больше действий за ход
+    anim:{ phase:"idle", walkPath:null, walkT:0, aimAng:0, recoil:0, bob:Math.random()*6 },
+  };
+  btUnits.push(btPlayer);
+  /* три вражеских меха: лёгкий / средний / тяжёлый — цвета и размеры различаются */
+  const enemies = [
+    { id:"e_light",  name:"РАЗВЕДЧИК MK-I",  cls:0, gx:13, gy:4,  hp:120, dmg:10, armor:2, move:5, actions:2 },
+    { id:"e_medium", name:"ШТУРМОВИК MK-II", cls:1, gx:12, gy:9,  hp:220, dmg:16, armor:6, move:3, actions:1 },
+    { id:"e_heavy",  name:"СУДЬЯ MK-III",    cls:2, gx:8,  gy:13, hp:420, dmg:26, armor:14, move:2, actions:1 },
+  ];
+  enemies.forEach(e => btUnits.push({ ...e, team:"enemy", maxHp:e.hp, weapon:1+e.cls,
+    anim:{ phase:"idle", walkPath:null, walkT:0, aimAng:0, recoil:0, bob:Math.random()*6 } }));
+}
+
+/* --- A*-поиск пути по сетке (как в Diablo II — юнит идёт «тропинкой») --- */
+function occupied(gx, gy, ignoreUnit) {
+  return btUnits.some(u => u !== ignoreUnit && u.hp > 0 && u.gx === gx && u.gy === gy);
+}
+function walkable(gx, gy, unit) {
+  if (gx < 0 || gy < 0 || gx >= BT_MAP || gy >= BT_MAP) return false;
+  if (btTiles[gy][gx] !== 0) return false;
+  return !occupied(gx, gy, unit);
+}
+function findPath(from, to, unit) {
+  if (!walkable(to.gx, to.gy, unit)) return null;
+  const key = (x,y) => y*BT_MAP+x;
+  const open = [{ x:from.gx, y:from.gy, g:0, f:0, parent:null }];
+  const came = new Map();
+  const h = (x,y) => Math.abs(x-to.gx)+Math.abs(y-to.gy);
+  while (open.length) {
+    open.sort((a,b)=>a.f-b.f);
+    const cur = open.shift();
+    if (cur.x === to.gx && cur.y === to.gy) {
+      const path = []; let n = cur;
+      while (n) { path.unshift({gx:n.x, gy:n.y}); n = n.parent; }
+      return path.slice(1); // без стартовой клетки
+    }
+    came.set(key(cur.x,cur.y), true);
+    for (const [dx,dy] of [[1,0],[-1,0],[0,1],[0,-1],[1,1],[1,-1],[-1,1],[-1,-1]]) {
+      const nx = cur.x+dx, ny = cur.y+dy;
+      if (!walkable(nx,ny,unit) || came.has(key(nx,ny))) continue;
+      if (dx && dy) { // по диагонали нельзя срезать через два угла стен
+        if (!walkable(cur.x+dx,cur.y,unit) || !walkable(cur.x,cur.y+dy,unit)) continue;
+      }
+      const g = cur.g + (dx&&dy?1.41:1);
+      open.push({ x:nx, y:ny, g, f:g+h(nx,ny)*1.01, parent:cur });
+    }
+  }
+  return null;
+}
+
+/* --- состояние хода --- */
+let btPhase = "player";        // player | enemy | busy (идёт анимация) | over
+let btActingUnit = null;       // юнит игрока, ожидающий действия (в бою он один)
+let btReachCells = new Set();  // куда можно дойти за действие (подсветка как в F1/D2)
+let btHover = null;            // клетка под курсором
+let btTurnNum = 1;
+
+function computeReach(unit) {
+  btReachCells = new Set();
+  if (!unit) return;
+  /* flood-fill на расстояние unit.move, обходя стены и юнитов */
+  let frontier = [{x:unit.gx,y:unit.gy,d:0}];
+  const seen = new Set([unit.gy*BT_MAP+unit.gx]);
+  while (frontier.length) {
+    const c = frontier.shift();
+    if (c.d > 0) btReachCells.add(c.y*BT_MAP+c.x);
+    if (c.d >= unit.move) continue;
+    for (const [dx,dy] of [[1,0],[-1,0],[0,1],[0,-1],[1,1],[1,-1],[-1,1],[-1,-1]]) {
+      const nx=c.x+dx, ny=c.y+dy, k=ny*BT_MAP+nx;
+      if (seen.has(k) || !walkable(nx,ny,unit)) continue;
+      if (dx&&dy && (!walkable(c.x+dx,c.y,unit)||!walkable(c.x,c.y+dy,unit))) continue;
+      seen.add(k); frontier.push({x:nx,y:ny,d:c.d+1});
+    }
+  }
+}
+
+function beginPlayerActions() {
+  btPhase = "player";
+  btActingUnit = btPlayer;
+  computeReach(btPlayer);
+  updateTurnBanner();
+  refreshBattleHud();
+}
+function endPlayerTurn() {
+  if (btPhase !== "player") return;
+  btPhase = "busy";
+  updateTurnBanner();
+  beginEnemyPhase();                     // сброс флагов _done и запуск фазы противника
+}
+
+/* Ход врагов: каждый по очереди делает движение к игроку и выстрел (если достреливает) */
+function beginEnemyPhase() {
+  btUnits.filter(u => u.team==="enemy" && u.hp>0).forEach(u => u._done = false);
+  btPhase = "enemy";
+  updateTurnBanner();
+  setTimeout(enemyTurnStep, 350);
+}
+function enemyTurnStep() {
+  const foes = btUnits.filter(u => u.team==="enemy" && u.hp>0);
+  const next = foes.find(u => !u._done);
+  if (!next) { btTurnNum++; beginPlayerActions(); return; }
+  next._done = true;
+  const dist = Math.abs(next.gx-btPlayer.gx)+Math.abs(next.gy-btPlayer.gy);
+  const range = 4 + next.cls; // тяжёлый стреляет дальше
+  if (dist <= range) {
+    /* атака: разворот ствола + залп с трассером */
+    orderFire(next, btPlayer, () => afterEnemyAction(next));
+  } else if (dist <= range + next.move) {
+    /* близко, но цель за укрытием? всё равно идём ближе и стреляем */
+    moveToward(next, btPlayer, () => afterEnemyAction(next));
+  } else {
+    moveToward(next, btPlayer, () => afterEnemyAction(next));
+  }
+}
+function afterEnemyAction(next) {
+  if (checkBattleOver()) return;
+  setTimeout(enemyTurnStep, 300);
+}
+function moveToward(unit, target, done) {
+  /* идем к последней свободной клетке рядом с целью */
+  const cells = [[1,0],[-1,0],[0,1],[0,-1],[1,1],[1,-1],[-1,1],[-1,-1]]
+    .map(([dx,dy])=>({gx:target.gx+dx, gy:target.gy+dy}))
+    .filter(c=>walkable(c.gx,c.gy,unit))
+    .sort((a,b)=> (Math.hypot(a.gx-unit.gx,a.gy-unit.gy)) - (Math.hypot(b.gx-unit.gx,b.gy-unit.gy)));
+  const dest = cells[0];
+  if (!dest) { done(); return; }
+  startMove(unit, dest, done);
+}
+
+/* --- приказ игрока: клик по карте --- */
+function battleClick(px, py) {
+  if (btPhase !== "player" || !btActingUnit) return;
+  const { gx, gy } = screenToIso(px, py);
+  /* клик по врагу — огонь, если в радиусе выстрела */
+  const foe = btUnits.find(u => u.team==="enemy" && u.hp>0 && u.gx===gx && u.gy===gy);
+  if (foe) {
+    const dist = Math.abs(foe.gx-btActingUnit.gx)+Math.abs(foe.gy-btActingUnit.gy);
+    const range = 5 + (2 - loadout.torso); // лёгкая сборка стреляет дальше
+    if (dist <= range) { orderFire(btActingUnit, foe, playerActionFinished); btlLog(`Огонь по ${foe.name}!`); }
+    else btlLog(`Цель слишком далеко (${dist} кл., максимум ${range}). Сначала сблизьтесь.`, "dmg");
+    return;
+  }
+  /* клик по доступной клетке — шаг туда (анимация движения) */
+  if (btReachCells.has(gy*BT_MAP+gx)) {
+    startMove(btActingUnit, {gx, gy}, playerActionFinished);
+  } else {
+    btlLog("Туда не пройти за один рывок — выберите подсвеченную клетку.");
+  }
+}
+/* Действие игрока завершено: либо остаётся фаза игрока (ещё действия), либо ход врагов. */
+function playerActionFinished() {
+  if (checkBattleOver()) return;
+  btActingUnit.actions--;
+  if (btActingUnit.actions > 0) {
+    btPhase = "player";                    // возвращаем управление: осталось действие (у быстрых сборок)
+    computeReach(btActingUnit);
+    updateTurnBanner();
+  } else {
+    beginEnemyPhase();                     // действия кончились — ход противника
+  }
+}
+
+/* --- движение с АНИМАЦИЕЙ ШАГОВ МЕХА: юнит идёт по клеткам пути,
+       покадрово интерполируется, походка кодыряет (bob/шаги ног) --- */
+function startMove(unit, dest, done) {
+  const path = findPath({gx:unit.gx,gy:unit.gy}, dest, unit);
+  if (!path || !path.length) { done && done(); return; }
+  btPhase = "busy";
+  unit.anim.phase = "walk";
+  unit.anim.walkPath = [{gx:unit.gx,gy:unit.gy}, ...path];
+  unit.anim.walkSeg = 0;
+  unit.anim.walkT = 0;
+  unit._moveDone = done;
+  /* скорость шага зависит от speed-стата: быстрые ноги перебирают чаще */
+  unit.anim.stepDur = Math.max(90, 320 - (unit.move*28));
+}
+
+/* --- стрельба с АНИМАЦИЕЙ ОРУЖИЯ: разворот ствола к цели, отдача, дульная вспышка, трассер --- */
+function orderFire(shooter, target, done) {
+  btPhase = "busy";
+  shooter.anim.phase = "aim";
+  const a = isoToScreen(shooter.gx, shooter.gy), b = isoToScreen(target.gx, target.gy);
+  shooter.anim.aimTarget = { x:b.x, y:b.y - 26 };
+  shooter._fireDone = done;
+  shooter._fireTarget = target;
+  setTimeout(() => {                       // после короткой анимации прицеливания — залп
+    if (shooter.hp <= 0) {                 // стрелок мог быть уничтожен в ответ — приказ отменён
+      const cb = shooter._fireDone; shooter._fireDone = null;
+      if (cb) cb(); return;
+    }
+    shooter.anim.phase = "fire";
+    shooter.anim.recoil = 1;               // отдача гаснет в render-цикле
+    spawnTracer(shooter, target);
+    applyShotDamage(shooter, target);
+  }, 420);
+}
+function applyShotDamage(shooter, target) {
+  const isPlayer = shooter.team === "player";
+  const raw = isPlayer ? shooter.power : shooter.dmg;
+  const variance = 0.8 + Math.random()*0.4;
+  let dmg = Math.max(1, Math.round(raw * variance - target.armor));
+  /* тяжёлый корпус игрока держит удар лучше: снижение по классу торса */
+  if (!isPlayer && target === btPlayer) dmg = Math.max(1, dmg - loadout.torso*3);
+  if (Math.random() < 0.12) { dmg = Math.round(dmg*1.8); btlLog(`КРИТ по ${target.name}!`, "kill"); }
+  target.hp = Math.max(0, target.hp - dmg);
+  target.hitFlash = 1;                     // белая вспышка попадания (гаснет в рендере)
+  btlLog(`${shooter.name} → ${target.name}: −${dmg} ХП`, "dmg");
+  refreshBattleHud();
+  if (target.hp === 0) {
+    target.deadAt = performance.now();
+    spawnExplosion(target);
+    btlLog(`✖ ${target.name} УНИЧТОЖЕН`, "kill");
+  }
+}
+function checkBattleOver() {
+  const foesAlive = btUnits.some(u => u.team==="enemy" && u.hp>0);
+  if (!foesAlive) { btPhase="over"; showBanner("ПОБЕДА! СЕКТОР ЗАЧИЩЕН", "#ffd23f"); return true; }
+  if (btPlayer.hp <= 0)  { btPhase="over"; showBanner("МЕХ РАЗРУШЕН… ЭВАКУАЦИЯ", "#ff5d5d"); return true; }
+  return false;
+}
+function showBanner(text, color) {
+  const b = document.getElementById("turnBanner");
+  b.textContent = text; b.classList.remove("enemy-phase");
+  b.style.color = color; b.style.textShadow = `0 0 14px ${color}`;
+}
+function updateTurnBanner() {
+  const b = document.getElementById("turnBanner");
+  b.style.color = ""; b.style.textShadow = "";
+  if (btPhase === "player") { b.textContent = `ХОД ${btTurnNum} · ОГОНЬ ИЛИ МАНЁВР (осталось действий: ${btActingUnit ? btActingUnit.actions : 0})`; b.classList.remove("enemy-phase"); }
+  else if (btPhase === "busy") { b.textContent = "ВЫПОЛНЯЕТСЯ ПРИКАЗ…"; }
+  else if (btPhase === "enemy") { b.textContent = `ХОД ПРОТИВНИКА №${btTurnNum}`; b.classList.add("enemy-phase"); }
+}
+
+/* --- частицы: трассеры, взрывы, всплывающий урон --- */
+let fx = [];
+function spawnTracer(shooter, target) {
+  const a = isoToScreen(shooter.gx, shooter.gy), b = isoToScreen(target.gx, target.gy);
+  fx.push({ type:"tracer", x1:a.x, y1:a.y-30, x2:b.x, y2:b.y-24, t0:performance.now(), dur:260,
+            color: shooter.team==="player" ? "#7ef2e2" : "#ff8a5c" });
+  fx.push({ type:"muzzle", x:a.x+14, y:a.y-30, t0:performance.now(), dur:140 });
+}
+function spawnExplosion(unit) {
+  const p = isoToScreen(unit.gx, unit.gy);
+  for (let i=0;i<16;i++) {
+    const ang = Math.random()*Math.PI*2, sp = 0.6+Math.random()*2.4;
+    fx.push({ type:"spark", x:p.x, y:p.y-26, vx:Math.cos(ang)*sp, vy:Math.sin(ang)*sp-1,
+              t0:performance.now(), dur:600+Math.random()*400,
+              color: ["#ffd23f","#ff8a5c","#ff4d9d"][i%3] });
+  }
+  fx.push({ type:"ring", x:p.x, y:p.y-20, t0:performance.now(), dur:520 });
+}
+
+/* ============================================================
+   РЕНДЕР ПОЛЯ БОЯ (requestAnimationFrame): тайлы, юниты,
+   подсветки, эффекты, анимация походки и отдачи оружия
+   ============================================================ */
+function drawIsometricGround() {
+  for (let gy=0; gy<BT_MAP; gy++) for (let gx=0; gx<BT_MAP; gx++) {
+    const { x, y } = isoToScreen(gx, gy);
+    const t = btTiles[gy][gx];
+    btCtx.beginPath();
+    btCtx.moveTo(x, y); btCtx.lineTo(x+BT_TILE_W/2, y+BT_TILE_H/2);
+    btCtx.lineTo(x, y+BT_TILE_H); btCtx.lineTo(x-BT_TILE_W/2, y+BT_TILE_H/2);
+    btCtx.closePath();
+    let fill = ((gx+gy)%2) ? "#1b2636" : "#16202e";
+    if (t===2) fill = "#234028";                      // радиоактивная лужа
+    if (btReachCells.has(gy*BT_MAP+gx)) fill = "rgba(53,240,255,.22)"; // куда можно дойти
+    if (btHover && btHover.gx===gx && btHover.gy===gy) fill = "rgba(255,210,63,.35)";
+    btCtx.fillStyle = fill; btCtx.fill();
+    btCtx.strokeStyle = "rgba(80,120,160,.18)"; btCtx.stroke();
+    if (t===1) {                                      // обломок здания — «коробка» сбоку-сверху
+      const h = 22;
+      btCtx.fillStyle = "#2c3a4e";
+      btCtx.beginPath();
+      btCtx.moveTo(x-BT_TILE_W/2, y+BT_TILE_H/2); btCtx.lineTo(x, y+BT_TILE_H);
+      btCtx.lineTo(x, y+BT_TILE_H-h); btCtx.lineTo(x-BT_TILE_W/2, y+BT_TILE_H/2-h);
+      btCtx.closePath(); btCtx.fill();
+      btCtx.fillStyle = "#3a4c66";
+      btCtx.beginPath();
+      btCtx.moveTo(x, y+BT_TILE_H); btCtx.lineTo(x+BT_TILE_W/2, y+BT_TILE_H/2);
+      btCtx.lineTo(x+BT_TILE_W/2, y+BT_TILE_H/2-h); btCtx.lineTo(x, y+BT_TILE_H-h);
+      btCtx.closePath(); btCtx.fill();
+      btCtx.fillStyle = "#506a8c";
+      btCtx.beginPath();
+      btCtx.moveTo(x, y-h); btCtx.lineTo(x+BT_TILE_W/2, y+BT_TILE_H/2-h);
+      btCtx.lineTo(x, y+BT_TILE_H-h); btCtx.lineTo(x-BT_TILE_W/2, y+BT_TILE_H/2-h);
+      btCtx.closePath(); btCtx.fill();
+    }
+  }
+}
+
+/* Отрисовка меха в изометрии: вид сверху-сбоку.
+   Параметры: scale — размер по классу, colors — палитра,
+   walkPhase — фаза шага для анимации ног, aim/fire — анимация оружия. */
+function drawBattleMech(u, sx, sy) {
+  const C = MECH_COLORS[u.cls];
+  const scale = [0.62, 0.85, 1.12][u.cls];
+  const w = 34*scale, h = 46*scale;
+  const anim = u.anim;
+  const now = performance.now();
+  /* Походка: ноги ходят в противофазе, корпус покачивается (hop) */
+  let legL = 0, legR = 0, hop = 0;
+  if (anim.phase === "walk") {
+    const ph = now/anim.stepDur*Math.PI;
+    legL = Math.sin(ph)*5*scale; legR = -legL;
+    hop  = Math.abs(Math.sin(ph))*2.4*scale;
+  } else {
+    const idle = Math.sin(now/700 + anim.bob)*1.2;
+    legL = idle*0.3; legR = -idle*0.3; hop = idle*0.4;
+  }
+  /* Отдача оружия: ствол «отъезжает» назад и гаснет за 200 мс */
+  if (anim.recoil > 0) anim.recoil = Math.max(0, anim.recoil - 0.06);
+  const rec = anim.recoil * 7 * scale;
+  /* Прицеливание: плавный доворот ствола к цели */
+  let want = 0;
+  if (anim.phase === "aim" || anim.phase === "fire") {
+    want = Math.atan2(anim.aimTarget.y - (sy-h), anim.aimTarget.x - sx);
+    anim.aimAng += (want - anim.aimAng) * 0.35;
+    if (anim.phase === "aim" && Math.abs(want-anim.aimAng) < 0.08) { /* ждём залпа из логики */ }
+  } else anim.aimAng *= 0.9;
+  const facingLeft = (anim.phase==="aim"||anim.phase==="fire") ? Math.cos(anim.aimAng) < 0
+                   : (u.team==="enemy");
+  btCtx.save();                            // сохраняем состояние ради зеркалирования спрайта
+  if (facingLeft) { btCtx.translate(sx, 0); btCtx.scale(-1, 1); btCtx.translate(-sx, 0); }
+  const topY = sy - h - 18*scale - hop;
+  /* тень */
+  btCtx.fillStyle = "rgba(0,0,0,.35)";
+  btCtx.beginPath(); btCtx.ellipse(sx, sy+2, w*0.9, w*0.36, 0, 0, Math.PI*2); btCtx.fill();
+  /* ноги */
+  btCtx.fillStyle = C.dark;
+  btCtx.fillRect(sx-w*0.42, sy-16*scale+legL, w*0.3, 16*scale);
+  btCtx.fillRect(sx+w*0.12, sy-16*scale+legR, w*0.3, 16*scale);
+  /* ступни */
+  btCtx.fillStyle = "#222c3a";
+  btCtx.fillRect(sx-w*0.5, sy-3+legL, w*0.44, 4);
+  btCtx.fillRect(sx+w*0.06, sy-3+legR, w*0.44, 4);
+  /* торс */
+  btCtx.fillStyle = u.hitFlash > 0 ? "#ffffff" : C.main;
+  roundRectBt(sx-w/2, topY+10*scale, w, h*0.62, 5);
+  /* плечи */
+  btCtx.fillStyle = C.dark;
+  btCtx.fillRect(sx-w*0.72, topY+10*scale, w*0.28, h*0.3);
+  btCtx.fillRect(sx+w*0.44, topY+10*scale, w*0.28, h*0.3);
+  /* кабина-«визор» в аниме-стиле */
+  btCtx.fillStyle = "#0d1420";
+  roundRectBt(sx-w*0.3, topY+2*scale, w*0.6, 12*scale, 4);
+  btCtx.fillStyle = u.team==="player" ? "#35f0ff" : "#ff5d5d";
+  btCtx.fillRect(sx-w*0.22, topY+6*scale, w*0.44, 3);
+  /* ОРУЖИЕ: рука-пушка, разворачивается к цели, с отдачей и вспышкой */
+  const gunLen = [16,22,30][u.weapon] * scale;
+  const ang = anim.aimAng;
+  const shX = sx + w*0.5, shY = topY + 18*scale;
+  btCtx.save();
+  btCtx.translate(shX - Math.cos(ang)*rec, shY - Math.sin(ang)*rec);
+  btCtx.rotate(ang);
+  btCtx.fillStyle = "#39465c"; btCtx.fillRect(0, -3*scale, gunLen, 6*scale);
+  btCtx.fillStyle = C.accent; btCtx.fillRect(gunLen-4*scale, -2*scale, 4*scale, 4*scale);
+  if (anim.recoil > 0.55) {                        // дульная вспышка в первые кадры залпа
+    btCtx.fillStyle = "rgba(255,220,120,.9)";
+    btCtx.beginPath(); btCtx.arc(gunLen+4*scale, 0, 7*scale*anim.recoil, 0, Math.PI*2); btCtx.fill();
+  }
+  btCtx.restore();                         // конец save/restore оружия (поворот ствола)
+  /* ...здесь можно вставить свой спрайт: if (SPRITE_IMG.complete) { btCtx.drawImage(SPRITE_IMG, sx-30, topY, 60, 70); } */
+  btCtx.restore();                         // конец зеркалирования юнита
+  /* полоска ХП над юнитом */
+  const bw = 40;
+  btCtx.fillStyle = "rgba(0,0,0,.55)"; btCtx.fillRect(sx-bw/2, topY-10, bw, 5);
+  btCtx.fillStyle = u.team==="player" ? "#3ad6c4" : "#ff5d5d";
+  btCtx.fillRect(sx-bw/2, topY-10, bw*(u.hp/u.maxHp), 5);
+  /* имя при наведении/выборе */
+  if (u === btActingUnit || (btHoverU === u)) {
+    btCtx.font = "10px monospace"; btCtx.textAlign = "center";
+    btCtx.fillStyle = "#cfe3f5"; btCtx.fillText(u.name, sx, topY-14);
+  }
+}
+/* поддержка зеркального отражения спрайта реализована через btCtx.save/restore внутри drawBattleMech */
+function roundRectBt(x,y,w,h,r){ btCtx.beginPath(); btCtx.moveTo(x+r,y); btCtx.arcTo(x+w,y,x+w,y+h,r); btCtx.arcTo(x+w,y+h,x,y+h,r); btCtx.arcTo(x,y+h,x,y,r); btCtx.arcTo(x,y,x+w,y,r); btCtx.closePath(); btCtx.fill(); }
+
+/* Позиция юнита между кадрами движения (интерполяция по пути) */
+function unitPixelPos(u) {
+  let gx = u.gx, gy = u.gy;
+  if (u.anim.phase === "walk" && u.anim.walkPath) {
+    const p = u.anim.walkPath;
+    const i = Math.min(u.anim.walkSeg, p.length-2);
+    const t = Math.min(1, u.anim.walkT);
+    gx = p[i].gx + (p[i+1].gx - p[i].gx) * t;
+    gy = p[i].gy + (p[i+1].gy - p[i].gy) * t;
+  }
+  return isoToScreen(gx, gy);
+}
+
+let btHoverU = null;
+function renderBattle(ts) {
+  if (!document.getElementById("screenBattle").classList.contains("visible")) { requestAnimationFrame(renderBattle); return; }
+  btCtx.clearRect(0, 0, btCanvas.width, btCanvas.height);
+  /* фон-градиент постапокалиптического неба над полигоном */
+  const g = btCtx.createLinearGradient(0,0,0,btCanvas.height);
+  g.addColorStop(0,"#0b1322"); g.addColorStop(.5,"#0d1726"); g.addColorStop(1,"#0a1018");
+  btCtx.fillStyle = g; btCtx.fillRect(0,0,btCanvas.width,btCanvas.height);
+  drawIsometricGround();
+
+  /* продвижение анимации ходьбы: шаг за шагом по клеткам пути */
+  btUnits.forEach(u => {
+    if (u.hp<=0 && !u.deadAt) return;
+    const a = u.anim;
+    if (a.phase === "walk" && a.walkPath) {
+      a.walkT += 16 / a.stepDur;
+      if (a.walkT >= 1) {
+        a.walkT = 0; a.walkSeg++;
+        const cell = a.walkPath[a.walkSeg];
+        if (cell) { u.gx = cell.gx; u.gy = cell.gy; }
+        if (a.walkSeg >= a.walkPath.length-1) {
+          a.phase = "idle"; a.walkPath = null;
+          const cb = u._moveDone; u._moveDone = null;
+          if (cb) cb();                    // колбэк сам восстанавливает фазу хода
+        }
+      }
+    }
+    if (a.phase === "fire") {              // залп выполнен (отдача показана) — возврат в ожидание
+      a.phase = "idle";
+      const cb = u._fireDone; u._fireDone = null;
+      if (cb) cb();
+    }
+    if (u.hitFlash > 0) u.hitFlash -= 0.08;
+  });
+
+  /* сортировка по глубине (yx) — юниты ближе к «переднему плану» рисуются поверх */
+  const sorted = [...btUnits].filter(u=>u.hp>0 || u.deadAt).sort((a,b)=>{
+    const pa=isoToScreen(a.gx,a.gy), pb=isoToScreen(b.gx,b.gy);
+    return (pa.y - pb.y) || (pa.x - pb.x);
+  });
+  sorted.forEach(u => {
+    if (u.hp <= 0) {                                 // дымка уничтоженного меха
+      const p = isoToScreen(u.gx,u.gy);
+      btCtx.globalAlpha = 0.25; btCtx.fillStyle = "#555";
+      btCtx.fillRect(p.x-14, p.y-24, 28, 20); btCtx.globalAlpha = 1;
+      return;
+    }
+    const p = unitPixelPos(u);
+    drawBattleMech(u, p.x, p.y + BT_TILE_H/2);
+  });
+
+  /* эффекты: трассеры, вспышки, искры, кольца взрывов */
+  const now = performance.now();
+  fx = fx.filter(f => now - f.t0 < f.dur);
+  fx.forEach(f => {
+    const k = (now - f.t0) / f.dur;
+    if (f.type==="tracer") {
+      btCtx.strokeStyle = f.color; btCtx.lineWidth = 2.5; btCtx.globalAlpha = 1-k;
+      btCtx.beginPath();
+      const ex = f.x1+(f.x2-f.x1)*Math.min(1,k*2), ey = f.y1+(f.y2-f.y1)*Math.min(1,k*2);
+      btCtx.moveTo(f.x1,f.y1); btCtx.lineTo(ex,ey); btCtx.stroke(); btCtx.globalAlpha = 1;
+    } else if (f.type==="muzzle") {
+      btCtx.fillStyle = `rgba(255,230,140,${1-k})`;
+      btCtx.beginPath(); btCtx.arc(f.x,f.y,10*(1-k)+3,0,Math.PI*2); btCtx.fill();
+    } else if (f.type==="spark") {
+      btCtx.fillStyle = f.color; btCtx.globalAlpha = 1-k;
+      btCtx.fillRect(f.x+f.vx*k*60, f.y+f.vy*k*60+k*k*30, 3, 3); btCtx.globalAlpha = 1;
+    } else if (f.type==="ring") {
+      btCtx.strokeStyle = `rgba(255,140,80,${1-k})`; btCtx.lineWidth = 3;
+      btCtx.beginPath(); btCtx.ellipse(f.x,f.y,60*k,30*k,0,0,Math.PI*2); btCtx.stroke();
+    }
+  });
+  requestAnimationFrame(renderBattle);
+}
+requestAnimationFrame(renderBattle);
+
+/* --- HUD поля боя --- */
+function refreshBattleHud() {
+  const bar = document.getElementById("playerHpBar");
+  bar.querySelector("i").style.width = (btPlayer.hp/btPlayer.maxHp*100)+"%";
+  bar.classList.toggle("low", btPlayer.hp/btPlayer.maxHp < .35);
+  document.getElementById("playerHpTxt").textContent = `${btPlayer.hp} / ${btPlayer.maxHp}`;
+  document.getElementById("playerPwSp").textContent = `${btPlayer.power} / ${btPlayer.move} кл·ход`;
+  document.getElementById("playerArmor").textContent = btPlayer.armor;
+}
+function btlLog(msg, cls) {
+  const box = document.getElementById("battleLog");
+  box.innerHTML += `<div class="${cls||""}">[ТАКТ ${btTurnNum}] ${msg}</div>`;
+  box.scrollTop = box.scrollHeight;
+}
+
+/* --- мышь: наведение (клетка/юнит) и клики-приказы --- */
+function canvasPoint(ev) {
+  const r = btCanvas.getBoundingClientRect();
+  return { x:(ev.clientX-r.left)*(btCanvas.width/r.width), y:(ev.clientY-r.top)*(btCanvas.height/r.height) };
+}
+btCanvas.addEventListener("mousemove", ev => {
+  const p = canvasPoint(ev);
+  const c = screenToIso(p.x, p.y);
+  btHover = (c.gx>=0&&c.gy>=0&&c.gx<BT_MAP&&c.gy<BT_MAP) ? c : null;
+  btHoverU = btUnits.find(u => u.hp>0 && u.gx===c.gx && u.gy===c.gy) || null;
+  const info = document.getElementById("unitInfo");
+  if (btHoverU) {
+    info.innerHTML = `<b>${btHoverU.name}</b><br>ХП ${btHoverU.hp}/${btHoverU.maxHp} · Броня ${btHoverU.armor}<br>` +
+      (btHoverU.team==="enemy" ? "<span style='color:#ff8a70'>ЦЕЛЬ: клик — открыть огонь</span>" : "Свой мех");
+  } else if (btHover) {
+    const t = btTiles[btHover.gy][btHover.gx];
+    info.innerHTML = `Клетка [${btHover.gx}, ${btHover.gy}] · ` +
+      (t===1 ? "<b>Завал</b> — непроходим" : t===2 ? "<b>Радиолужа</b> — объезд" : btReachCells.has(btHover.gy*BT_MAP+btHover.gx) ? "Доступна для шага" : "Вне зоны шага");
+  }
+});
+btCanvas.addEventListener("click", ev => { const p = canvasPoint(ev); battleClick(p.x, p.y); });
+
+/* --- кнопки и горячие клавиши --- */
+document.getElementById("btnEndTurn").onclick = () => { if (btPhase==="player") { btActingUnit.actions = 0; endPlayerTurn(); } };
+document.getElementById("btnBtReset").onclick = () => startBattle();
+document.getElementById("btnBtHangar").onclick = () => goScreen("screenHangar");
+window.addEventListener("keydown", ev => {
+  if (!document.getElementById("screenBattle").classList.contains("visible")) return;
+  if (ev.key.toLowerCase()==="x" || ev.code==="Space") { ev.preventDefault(); if (btPhase==="player"){ btActingUnit.actions=0; endPlayerTurn(); } }
+});
+
+/* --- запуск/перезапуск боя (вызывается из ангара, полигона и с карты города) --- */
+let btBattleToken = 0;                   // «номер приказа»: отменяет все отложенные анимации старого боя
+function startBattle(missionName) {
+  btBattleToken++;                       // старый бой считается недействительным
+  genMap();
+  buildBattleUnits();
+  btTurnNum = 1; fx = [];
+  document.getElementById("battleLog").innerHTML = "";
+  document.getElementById("turnBanner").style.cssText = "";
+  btlLog(missionName ? `Высадка: ${missionName}. Противник обнаружен.` : "Учебное развертывание. Полигон «Эхо».");
+  beginPlayerActions();
+  refreshBattleHud();
+}
+startBattle();
 
 /* Первичный пересчёт и отрисовка обоих экранов */
 refreshAll();

@@ -470,17 +470,19 @@ p.screen-sub { color: #7d93ad; font-size: .85rem; margin-bottom: 20px; }
 #trainingCanvas {
   display:block;
   background:#0a1018; border:1px solid #2a3b52; border-radius:8px;
-  cursor:crosshair; width:896px; max-width:100%; height:auto; touch-action:manipulation;
+  cursor:crosshair; width:940px; max-width:100%; height:auto; touch-action:manipulation;
   box-shadow:0 0 30px rgba(0,0,0,.6) inset;
 }
 .tr-wrap { display:flex; gap:14px; flex-wrap:wrap; align-items:flex-start; }
 /* Обёртка полотна: relative — чтобы плашка загрузки легла ровно на canvas */
-.iso-stage { position:relative; flex:0 1 896px; min-width:280px; }
+.iso-stage { position:relative; flex:0 1 940px; min-width:280px; }
 /* Плашка «загрузка сцены»: закрыта (opacity 0) по умолчанию,
-   открывается классом .on при входе на экран поля боя / полигона */
+   открывается классом .on при входе на экран поля боя / полигона.
+   Внутри — ДВА элемента в колонку: надпись-статус и КНОПКА «НАЧАТЬ БОЙ» */
 .scene-loading {
   position:absolute; inset:0; z-index:5; border-radius:8px;
-  display:flex; align-items:center; justify-content:center;
+  display:flex; flex-direction:column; align-items:center; justify-content:center;
+  gap:18px; padding:20px; text-align:center;
   background:rgba(6,10,18,.92);
   opacity:0; pointer-events:none; transition:opacity .25s;
 }
@@ -490,6 +492,21 @@ p.screen-sub { color: #7d93ad; font-size: .85rem; margin-bottom: 20px; }
   text-shadow:0 0 14px rgba(53,240,255,.7); animation:loadBlink 1s infinite steps(2);
 }
 @keyframes loadBlink { 0%,100%{opacity:1;} 50%{opacity:.4;} }
+/* Крупная неоновая кнопка «▶ НАЧАТЬ БОЙ» поверх заставки */
+.start-fight-btn {
+  font-family:inherit; font-weight:900; font-size:1.15rem; letter-spacing:4px;
+  text-transform:uppercase; cursor:pointer; padding:16px 42px; border-radius:8px;
+  color:#04121a; background:linear-gradient(180deg,#5df6ff,#18b9d4 60%,#0e8aa8);
+  border:2px solid #bafcff; box-shadow:0 0 26px rgba(53,240,255,.55), inset 0 0 12px rgba(255,255,255,.35);
+  transition:transform .12s, box-shadow .12s, filter .12s;
+  animation:startPulse 1.4s ease-in-out infinite;
+}
+.start-fight-btn:hover { transform:scale(1.06); filter:brightness(1.15); }
+.start-fight-btn:active { transform:scale(.97); }
+@keyframes startPulse {
+  0%,100% { box-shadow:0 0 22px rgba(53,240,255,.45), inset 0 0 12px rgba(255,255,255,.35); }
+  50%     { box-shadow:0 0 44px rgba(53,240,255,.9),  inset 0 0 18px rgba(255,255,255,.5); }
+}
 .tr-side { flex:1 1 250px; min-width:240px; display:flex; flex-direction:column; gap:12px; }
 .act-buttons { display:flex; gap:10px; flex-wrap:wrap; }
 .act-btn {
@@ -773,7 +790,7 @@ footer {
   display:block;
   background:#0a1018; border:1px solid var(--line,#2a3b52); border-radius:8px;
   cursor:crosshair; image-rendering:auto; touch-action:manipulation;
-  width:896px; max-width:100%; height:auto; box-shadow:0 0 30px rgba(0,0,0,.6) inset;
+  width:940px; max-width:100%; height:auto; box-shadow:0 0 30px rgba(0,0,0,.6) inset;
 }
 .battle-side { flex:1 1 260px; min-width:250px; display:flex; flex-direction:column; gap:12px; }
 .turn-banner {
@@ -815,7 +832,10 @@ footer {
   <div class="hangar-grid">
     <!-- Живой просмотр меха на Canvas -->
     <div id="mechStage">
-      <canvas id="mechCanvas" width="440" height="420"></canvas>
+      <!-- width/height задаются в JS (attachCanvases): canvas должен быть
+           ШИРЕ, чем ромб карты 16×16 (832+58 px), иначе мехи и клетки
+           «съезжают» за правый край полотна -->
+      <canvas id="mechCanvas" width="440" height="420" style="background:#0a1018;border:1px solid #2a3b52;border-radius:8px;"></canvas>
       <div class="mech-label">ОБЪЕКТ: «ГОНЧИЙ-7» // СТАТУС: ОНЛАЙН</div>
       <div class="warn-stripes"></div>
     </div>
@@ -983,10 +1003,17 @@ footer {
 
   <div class="tr-wrap">
     <!-- Полотно полигона: та же изометрия 16×16, что и на поле боя.
-         Обёртка relative нужна для плашки «загрузка сцены» -->
+         Обёртка relative нужна для плашки «загрузка сцены».
+         width/height задаёт JS (attachCanvases) — ромб карты 832 px
+         должен целиком помещаться на полотне 940 px -->
     <div class="iso-stage">
-      <canvas id="trainingCanvas" width="896" height="700"></canvas>
-      <div class="scene-loading" id="trLoading"><span>ЗАГРУЗКА ПОЛИГОНА «ЭХО»…</span></div>
+      <canvas id="trainingCanvas" width="940" height="700"></canvas>
+      <!-- КНОПКА «НАЧАТЬ БОЙ»: карта под плашкой уже собрана (мехи,
+           враги, сетки) — игрок видит заставку и по кнопке начинает бой -->
+      <div class="scene-loading on" id="trLoading">
+        <span>ПОЛИГОН «ЭХО» · СЕКТОР РАЗВЁРНУТ</span>
+        <button class="start-fight-btn" id="btnTrStart">▶ НАЧАТЬ БОЙ</button>
+      </div>
     </div>
 
     <div class="tr-side">
@@ -1086,8 +1113,14 @@ footer {
   <div class="battle-wrap">
     <!-- Главное полотно боя + плашка загрузки сектора (как заставка в Diablo/Fallout) -->
     <div class="iso-stage">
-      <canvas id="battleCanvas" width="896" height="700"></canvas>
-      <div class="scene-loading" id="btLoading"><span>ЗАГРУЗКА СЕКТОРА ВЫСАДКИ…</span></div>
+      <canvas id="battleCanvas" width="940" height="700"></canvas>
+      <!-- КНОПКА «НАЧАТЬ БОЙ»: пока она не нажата, карта под плашкой
+           уже собрана (мехи/враги/сетки хода и огня) — как заставка
+           Diablo/Fallout перед боем -->
+      <div class="scene-loading on" id="btLoading">
+        <span>СЕКТОР ВЫСАДКИ · РАЗВЁРТЫВАНИЕ ЗАВЕРШЕНО</span>
+        <button class="start-fight-btn" id="btnBtStart">▶ НАЧАТЬ БОЙ</button>
+      </div>
     </div>
 
     <div class="battle-side">
@@ -1194,18 +1227,28 @@ function goScreen(id) {
 }
 
 /* Перезапуск конкретной изометрической сцены под ТЕКУЩУЮ сборку меха
-   (loadout из ангара) + короткая заставка загрузки. */
+   (loadout из ангара). Порядок как в Diablo/Fallout:
+   1) плашка «СЕКТОР РАЗВЁРНУТ» + КНОПКА «НАЧАТЬ БОЙ» — сразу;
+   2) сцена собирается ПОД НЕЙ (карта, мехи, враги, сетки);
+   3) заставка остаётся до явного нажатия кнопки «НАЧАТЬ БОЙ»
+      (см. обработчики btnBtStart / btnTrStart внизу скрипта). */
 function bootIsoScene(id) {
   const banner = document.getElementById(id === "screenBattle" ? "btLoading" : "trLoading");
-  if (banner) banner.classList.add("on");           // сразу видна поверх ещё пустой карты
+  if (banner) banner.classList.add("on");           // заставка видна, карта строится под ней
   /* Кадр задержки: браузер успевает отрисовать плашку ДО тяжёлой сборки сцены */
   requestAnimationFrame(() => requestAnimationFrame(() => {
     try {
       if (id === "screenBattle") startBattle();     // карта + враги + подсветки
       else setupTraining();                          // полигон «Эхо»: мишени + зоны
     } catch (e) { console.error("bootIsoScene:", e); }
-    setTimeout(() => { if (banner) banner.classList.remove("on"); }, 350);
+    /* Заставку гасит ТОЛЬКО кнопка «НАЧАТЬ БОЙ» — игрок видит её всегда */
   }));
+}
+
+/* Спрятать заставку конкретной сцены (вызывается кнопкой «НАЧАТЬ БОЙ») */
+function hideSceneOverlay(id) {
+  const banner = document.getElementById(id === "screenBattle" ? "btLoading" : "trLoading");
+  if (banner) banner.classList.remove("on");
 }
 
 document.querySelectorAll(".nav-btn").forEach(b =>
@@ -1473,6 +1516,12 @@ function setupTraining() {
   computeTrainZones();
   refreshTrainNodes();
   updateTrainUi();
+  /* Перезапуск полигона (кнопка «Восстановить», вход на экран):
+     показываем заставку с кнопкой «НАЧАТЬ БОЙ» */
+  const banner = document.getElementById("trLoading");
+  if (banner && document.getElementById("screenTraining").classList.contains("visible")) {
+    banner.classList.add("on");
+  }
 }
 
 /* --- зоны: голубая сетка хода (ноги!) и оранжевая сетка огня (рука-оружие!) --- */
@@ -1758,8 +1807,15 @@ const fxTrain = [], fxBattle = [];
 /* --- изометрическая сетка 16×16: размеры ромба клетки --- */
 const BT_TILE_W = 52, BT_TILE_H = 26;      // ширина/высота ромба клетки
 const BT_MAP = 16;                          // карта 16 x 16 клеток
-const BATTLE_ORIGIN_X = 58;                 // вершина ромба по X (полотно 896px)
-const BATTLE_ORIGIN_Y = 70;                 // вершина ромба по Y
+/* ПОЛНОЕ ИЗОМЕТРИЧЕСКОГО РОМБА: ширина 16×52 = 832 px. Полотно боя
+   шире ромба (см. CANVAS_W ниже) — иначе карта «съезжает» вправо и
+   правый край поля теряется за границой canvas. */
+const ISO_DIAMOND_W = BT_MAP * BT_TILE_W;   // 832 px — ширина ромба карты
+const CANVAS_W = 940, CANVAS_H = 700;       // размеры полотен боя/полигона
+/* Вершина ромба по X: ромб ЦЕНТРУЕТСЯ на полотне (слева и справа от
+   него остаётся одинаковый запас ~54 px). Это чинит «съехавшее вправо» поле. */
+const BATTLE_ORIGIN_X = Math.round((CANVAS_W - ISO_DIAMOND_W) / 2) + BT_TILE_W / 2; // ≈106
+const BATTLE_ORIGIN_Y = 70;                 // верхняя точка левого угла старта
 
 /* --- полигон «Эхо» --- */
 /* ВНИМАНИЕ: эти переменные объявлены ЧЕРЕЗ var (а не let) намеренно.
@@ -2451,6 +2507,12 @@ function startBattle(missionName) {
   btlLog(missionName ? `Высадка: ${missionName}. Противник обнаружен.` : "Учебное развертывание. Полигон «Эхо».");
   beginPlayerActions();
   refreshBattleHud();
+  /* Перезапуск боя (кнопка «Новый бой», выступление с карты города):
+     показываем заставку с кнопкой «НАЧАТЬ БОЙ», как при входе на экран */
+  const banner = document.getElementById("btLoading");
+  if (banner && document.getElementById("screenBattle").classList.contains("visible")) {
+    banner.classList.add("on");
+  }
 }
 
 /* ============================================================
@@ -2463,10 +2525,30 @@ function startBattle(missionName) {
    2) startBattle()/setupTraining() заполняют юнитами обе сцены;
    3) запускаются циклы отрисовки requestAnimationFrame.
    ============================================================ */
+/* ============================================================
+   КНОПКИ «НАЧАТЬ БОЙ» на заставках (поле боя и полигон «Эхо»).
+   Сцена под плашкой уже развёрнута (старт скрипта + bootIsoScene),
+   поэтому кнопка только убирает заставку. Если бой был закончен —
+   сначала полная перезагрузка сектора с новой сборкой из ангара.
+   ============================================================ */
+document.getElementById("btnBtStart").onclick = () => {
+  if (btPhase === "over") startBattle();           // прошлый бой окончен — новый сектор
+  hideSceneOverlay("screenBattle");
+};
+document.getElementById("btnTrStart").onclick = () => {
+  if (trAct === "over") setupTraining();           // полигон остановлен — восстановить
+  hideSceneOverlay("screenTraining");
+};
+
+/* --- привязка полотен: размеры задаются ИЗ JS (CANVAS_W/H), чтобы
+       ширина canvas гарантированно превышала ромб карты 16×16 (832 px)
+       и поле боя не «съезжало» вправо за край полотна --- */
 function attachCanvases() {
   trCanvas = document.getElementById("trainingCanvas");
+  trCanvas.width = CANVAS_W; trCanvas.height = CANVAS_H;
   trCtx    = trCanvas.getContext("2d");
   btCanvas = document.getElementById("battleCanvas");
+  btCanvas.width = CANVAS_W; btCanvas.height = CANVAS_H;
   btCtx    = btCanvas.getContext("2d");
   attachTrainingEvents();                // слушатели мыши полигона
   attachBattleEvents();                  // слушатели мыши поля боя

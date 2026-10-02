@@ -463,12 +463,33 @@ p.screen-sub { color: #7d93ad; font-size: .85rem; margin-bottom: 20px; }
    ровная, без завалов). Подсветки: голубая — зона хода,
    оранжевая — зона огня оружия («до куда стреляет»).
    ============================================================ */
+/* Полотно полигона. ВАЖНО про размеры: width/height задаются АТРИБУТАМИ
+   в HTML (внутренний пиксельный буфер изометрии), а CSS-свойства ниже —
+   только «резиновая» витрина. display:block обязателен: без него у canvas
+   базовая линия строки добавляет отступ и высота «прыгает». */
 #trainingCanvas {
+  display:block;
   background:#0a1018; border:1px solid #2a3b52; border-radius:8px;
-  cursor:crosshair; max-width:100%; height:auto; touch-action:manipulation;
+  cursor:crosshair; width:896px; max-width:100%; height:auto; touch-action:manipulation;
   box-shadow:0 0 30px rgba(0,0,0,.6) inset;
 }
 .tr-wrap { display:flex; gap:14px; flex-wrap:wrap; align-items:flex-start; }
+/* Обёртка полотна: relative — чтобы плашка загрузки легла ровно на canvas */
+.iso-stage { position:relative; flex:0 1 896px; min-width:280px; }
+/* Плашка «загрузка сцены»: закрыта (opacity 0) по умолчанию,
+   открывается классом .on при входе на экран поля боя / полигона */
+.scene-loading {
+  position:absolute; inset:0; z-index:5; border-radius:8px;
+  display:flex; align-items:center; justify-content:center;
+  background:rgba(6,10,18,.92);
+  opacity:0; pointer-events:none; transition:opacity .25s;
+}
+.scene-loading.on { opacity:1; pointer-events:auto; }
+.scene-loading span {
+  font-family:monospace; letter-spacing:4px; font-size:.95rem; color:var(--neon-cyan,#35f0ff);
+  text-shadow:0 0 14px rgba(53,240,255,.7); animation:loadBlink 1s infinite steps(2);
+}
+@keyframes loadBlink { 0%,100%{opacity:1;} 50%{opacity:.4;} }
 .tr-side { flex:1 1 250px; min-width:240px; display:flex; flex-direction:column; gap:12px; }
 .act-buttons { display:flex; gap:10px; flex-wrap:wrap; }
 .act-btn {
@@ -747,10 +768,12 @@ footer {
    походки меха и оружия — программные (см. JS-секцию «БОЙ»).
    ============================================================ */
 #screenBattle .battle-wrap { display:flex; gap:14px; flex-wrap:wrap; align-items:flex-start; }
+/* Полотно поля боя — те же правила масштабирования, что у полигона */
 #battleCanvas {
+  display:block;
   background:#0a1018; border:1px solid var(--line,#2a3b52); border-radius:8px;
   cursor:crosshair; image-rendering:auto; touch-action:manipulation;
-  max-width:100%; height:auto; box-shadow:0 0 30px rgba(0,0,0,.6) inset;
+  width:896px; max-width:100%; height:auto; box-shadow:0 0 30px rgba(0,0,0,.6) inset;
 }
 .battle-side { flex:1 1 260px; min-width:250px; display:flex; flex-direction:column; gap:12px; }
 .turn-banner {
@@ -959,8 +982,12 @@ footer {
   </div>
 
   <div class="tr-wrap">
-    <!-- Полотно полигона: та же изометрия 16×16, что и на поле боя -->
-    <canvas id="trainingCanvas" width="896" height="700"></canvas>
+    <!-- Полотно полигона: та же изометрия 16×16, что и на поле боя.
+         Обёртка relative нужна для плашки «загрузка сцены» -->
+    <div class="iso-stage">
+      <canvas id="trainingCanvas" width="896" height="700"></canvas>
+      <div class="scene-loading" id="trLoading"><span>ЗАГРУЗКА ПОЛИГОНА «ЭХО»…</span></div>
+    </div>
 
     <div class="tr-side">
       <div class="turn-banner" id="trBanner">ТАКТ 1 · ДЕЙСТВИЕ: ХОД</div>
@@ -1057,8 +1084,11 @@ footer {
      Клавиши: 1–4 — выбор действия, Пробел — следующий юнит.</p>
 
   <div class="battle-wrap">
-    <!-- Главное полотно боя. Размер внутренний фиксирован, визуально масштабируется CSS -->
-    <canvas id="battleCanvas" width="896" height="700"></canvas>
+    <!-- Главное полотно боя + плашка загрузки сектора (как заставка в Diablo/Fallout) -->
+    <div class="iso-stage">
+      <canvas id="battleCanvas" width="896" height="700"></canvas>
+      <div class="scene-loading" id="btLoading"><span>ЗАГРУЗКА СЕКТОРА ВЫСАДКИ…</span></div>
+    </div>
 
     <div class="battle-side">
       <div class="turn-banner" id="turnBanner">ХОД ИГРОКА</div>
@@ -1144,13 +1174,40 @@ const MECH_COLORS = {
 };
 
 /* ============================================================
-   НАВИГАЦИЯ МЕЖДУ ЭКРАНАМИ
+   НАВИГАЦИЯ МЕЖДУ ЭКРАНАМИ + ГАРАНТИРОВАННАЯ ЗАГРУЗКА СЦЕН.
+
+   Раньше на «Поле боя» и «Тренировочном ангаре» появлялся пустой
+   интерфейс (без клеток хода и мехов) либо экран разворачивался
+   до готовности движка. Теперь переход устроен как в Diablo/Fallout:
+   при входе на боевой экран показывается плашка «ЗАГРУЗКА СЕКТОРА»,
+   в этот же момент сцена (карта 16×16, враги, сетки хода/огня)
+   перестраивается под текущую сборку из ангара, и только после
+   этого плашка гаснет — игрок видит уже готовое поле с мехами.
    ============================================================ */
+const LOADING_SCREENS = { screenBattle: true, screenTraining: true };
+
 function goScreen(id) {
   document.querySelectorAll(".screen").forEach(s => s.classList.toggle("visible", s.id === id));
   document.querySelectorAll(".nav-btn").forEach(b => b.classList.toggle("active", b.dataset.screen === id));
   window.scrollTo({ top: 0 });
+  if (LOADING_SCREENS[id]) bootIsoScene(id);
 }
+
+/* Перезапуск конкретной изометрической сцены под ТЕКУЩУЮ сборку меха
+   (loadout из ангара) + короткая заставка загрузки. */
+function bootIsoScene(id) {
+  const banner = document.getElementById(id === "screenBattle" ? "btLoading" : "trLoading");
+  if (banner) banner.classList.add("on");           // сразу видна поверх ещё пустой карты
+  /* Кадр задержки: браузер успевает отрисовать плашку ДО тяжёлой сборки сцены */
+  requestAnimationFrame(() => requestAnimationFrame(() => {
+    try {
+      if (id === "screenBattle") startBattle();     // карта + враги + подсветки
+      else setupTraining();                          // полигон «Эхо»: мишени + зоны
+    } catch (e) { console.error("bootIsoScene:", e); }
+    setTimeout(() => { if (banner) banner.classList.remove("on"); }, 350);
+  }));
+}
+
 document.querySelectorAll(".nav-btn").forEach(b =>
   b.addEventListener("click", () => goScreen(b.dataset.screen)));
 
@@ -1705,26 +1762,32 @@ const BATTLE_ORIGIN_X = 58;                 // вершина ромба по X 
 const BATTLE_ORIGIN_Y = 70;                 // вершина ромба по Y
 
 /* --- полигон «Эхо» --- */
-let trUnits = [], trPlayer = null;
-let trReachCells = new Set(), trFireCells = new Set();
-let trHoverCell = null, trHoverU = null;
-let trAct = "idle";                         // idle | move | fire | busy | over
-let trTurn = 1;
-let trMoved = false;                        // был ли ХОД в текущем такте
-let trCanvas = null, trCtx = null;          // реальные полотна — после attachCanvases()
+/* ВНИМАНИЕ: эти переменные объявлены ЧЕРЕЗ var (а не let) намеренно.
+   Ранняя фаза загрузки (applyLoadoutToUnits, обработчики кнопок) может
+   обратиться к ним ДО выполнения этого участка кода — let/const в таком
+   случае упали бы с «Cannot access before initialization» (TDZ) и вся
+   страница осталась бы без мехов и сеток. var при этом безопасен: до
+   инициализации он просто равен undefined. */
+var trUnits = [], trPlayer = null;
+var trReachCells = new Set(), trFireCells = new Set();
+var trHoverCell = null, trHoverU = null;
+var trAct = "idle";                         // idle | move | fire | busy | over
+var trTurn = 1;
+var trMoved = false;                        // был ли ХОД в текущем такте
+var trCanvas = null, trCtx = null;          // реальные полотна — после attachCanvases()
 
-/* --- поле боя --- */
-let btCanvas = null, btCtx = null;          // реальные полотна — после attachCanvases()
-let btTiles = null;                         // 0 = пол, 1 = завал, 2 = радиолужа
-let btUnits = [];
-let btPlayer = null;
-let btPhase = "player";                     // player | enemy | busy | over
-let btActingUnit = null;
-let btReachCells = new Set();               // голубая сетка шага
-let btFireCells = new Set();                // оранжевая сетка огня
-let btHover = null, btHoverU = null;        // клетка/юнит под курсором
-let btTurnNum = 1;
-let btBattleToken = 0;                      // «номер приказа»: отменяет отложенные анимации старого боя
+/* --- поле боя --- (те же причины для var, см. комментарий выше) */
+var btCanvas = null, btCtx = null;          // реальные полотна — после attachCanvases()
+var btTiles = null;                         // 0 = пол, 1 = завал, 2 = радиолужа
+var btUnits = [];
+var btPlayer = null;
+var btPhase = "player";                     // player | enemy | busy | over
+var btActingUnit = null;
+var btReachCells = new Set();               // голубая сетка шага
+var btFireCells = new Set();                // оранжевая сетка огня
+var btHover = null, btHoverU = null;        // клетка/юнит под курсором
+var btTurnNum = 1;
+var btBattleToken = 0;                      // «номер приказа»: отменяет отложенные анимации старого боя
 
 /* «переменные хода» для общих функций движения/огня (у каждой сцены своя) */
 const trRef = { p:"player", tiles:null, fx:fxTrain, log:(m,c)=>trLog(m,c) };
@@ -2365,7 +2428,14 @@ document.getElementById("btnEndTurn").onclick = () => { if (btPhase==="player") 
 document.getElementById("btnBtReset").onclick = () => startBattle();
 document.getElementById("btnBtHangar").onclick = () => goScreen("screenHangar");
 window.addEventListener("keydown", ev => {
-  if (!document.getElementById("screenBattle").classList.contains("visible")) return;
+  const onBattle   = document.getElementById("screenBattle").classList.contains("visible");
+  const onTraining = document.getElementById("screenTraining").classList.contains("visible");
+  /* Горячие клавиши полигона «Эхо»: 1 — ХОД, 2 — АТАКА (два действия за такт) */
+  if (onTraining && trPlayer) {
+    if (ev.key === "1" && trAct === "move") { trLog("Режим ХОДА активен: кликните по голубой сетке."); return; }
+    if (ev.key === "2") { btnActFire.click(); return; }
+  }
+  if (!onBattle) return;
   if (ev.key.toLowerCase()==="x" || ev.code==="Space") { ev.preventDefault(); if (btPhase==="player"){ btActingUnit.actions=0; endPlayerTurn(); } }
 });
 
